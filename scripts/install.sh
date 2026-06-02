@@ -6,7 +6,7 @@
 # Uses uv for desktop/server installs and Python's stdlib venv + pip on Termux.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/steve2er0/ava/main/scripts/install.sh | bash
 #
 # Or with options:
 #   curl -fsSL ... | bash -s -- --no-venv --skip-setup
@@ -43,8 +43,8 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Configuration
-REPO_URL_SSH="git@github.com:NousResearch/hermes-agent.git"
-REPO_URL_HTTPS="https://github.com/NousResearch/hermes-agent.git"
+REPO_URL_SSH="${AVA_REPO_URL_SSH:-git@github.com:steve2er0/ava.git}"
+REPO_URL_HTTPS="${AVA_REPO_URL_HTTPS:-https://github.com/steve2er0/ava.git}"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 # INSTALL_DIR is resolved AFTER arg parsing and OS detection so we can pick an
 # FHS-style layout for root installs.  Track whether the user gave us an
@@ -451,7 +451,7 @@ detect_os() {
             OS="windows"
             DISTRO="windows"
             log_error "Windows detected. Please use the PowerShell installer:"
-            log_info "  iex (irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1)"
+            log_info "  iex (irm https://raw.githubusercontent.com/steve2er0/ava/main/scripts/install.ps1)"
             exit 1
             ;;
         *)
@@ -1196,6 +1196,16 @@ clone_repo() {
         if [ -d "$INSTALL_DIR/.git" ]; then
             log_info "Existing installation found, updating..."
             cd "$INSTALL_DIR"
+
+            current_origin="$(git remote get-url origin 2>/dev/null || true)"
+            if [ -z "$current_origin" ]; then
+                log_info "No origin remote found; adding Ava origin..."
+                git remote add origin "$REPO_URL_HTTPS"
+            elif [ "$current_origin" != "$REPO_URL_HTTPS" ] && [ "$current_origin" != "$REPO_URL_SSH" ]; then
+                log_warn "Existing origin is $current_origin"
+                log_warn "Switching origin to Ava fork: $REPO_URL_HTTPS"
+                git remote set-url origin "$REPO_URL_HTTPS"
+            fi
 
             local autostash_ref=""
             if [ -n "$(git status --porcelain)" ]; then

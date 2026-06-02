@@ -1,0 +1,12 @@
+name: ava
+version: 0.1.0
+description: "AVA vibroacoustic engineering tools for FRF, SRS, BDF summaries, modal decks, and shock-delta review workflows."
+author: Stephen Wells, Hermes Agent
+kind: backend
+provides_tools:
+  - ava_compute_modal_frf
+  - ava_compute_srs
+  - ava_summarize_bdf
+  - ava_inspect_op2
+  - ava_build_modal_deck
+  - ava_run_shock_delta

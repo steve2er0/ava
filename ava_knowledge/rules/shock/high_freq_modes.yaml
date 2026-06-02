@@ -1,0 +1,113 @@
+rule_set_id: shock_high_frequency_mode_screen
+version: 0.1.0
+status: starter
+owner: ava_knowledge
+intent: >
+  Determine when a shock analysis must retain high-frequency modes beyond a
+  simple cumulative effective mass screen.
+
+scope:
+  analysis_methods:
+    - modal_transient
+    - modal_frequency_response
+    - shock_response_screening
+  load_types:
+    - base_shock
+    - interface_transient
+
+inputs:
+  event_duration_to_first_mode_period:
+    type: float
+    units: ratio
+    description: Shock event duration divided by the period of the first elastic mode.
+  response_metric:
+    type: enum
+    allowed:
+      - global_displacement
+      - interface_load
+      - local_acceleration
+      - local_stress
+  cumulative_effective_mass_percent:
+    type: float
+    units: percent
+    description: Cumulative translational effective mass in the governing direction.
+  response_converged:
+    type: boolean
+    description: >
+      True only if extending the modal basis changes the target response by
+      10 percent or less.
+  damping_basis_documented:
+    type: boolean
+    description: True when the damping value or model is explicitly recorded.
+
+logic:
+  - rule_id: SHOCK-HF-001
+    title: Retain high-frequency modes for short-duration local-response problems
+    when:
+      all:
+        - field: event_duration_to_first_mode_period
+          op: "<="
+          value: 0.25
+        - field: response_metric
+          op: in
+          value:
+            - local_acceleration
+            - local_stress
+            - interface_load
+    decision: retain_high_frequency_modes
+    required_actions:
+      - Extend the modal basis until the target response converges.
+      - Do not accept the model on cumulative effective mass alone.
+      - Record the final retained frequency range used for closure.
+    rationale: >
+      Short-duration shock can drive local response through higher modes that
+      contribute little to global effective mass.
+
+  - rule_id: SHOCK-HF-002
+    title: Allow low-order screening only for converged global displacement checks
+    when:
+      all:
+        - field: response_metric
+          op: "=="
+          value: global_displacement
+        - field: cumulative_effective_mass_percent
+          op: ">="
+          value: 90.0
+        - field: response_converged
+          op: "=="
+          value: true
+    decision: low_order_modal_set_acceptable
+    required_actions:
+      - Record the governing direction for the mass calculation.
+      - State that the decision applies only to global displacement screening.
+    rationale: >
+      Global displacement is often controlled by lower modes, but the scope of
+      this acceptance is intentionally narrow.
+
+  - rule_id: SHOCK-HF-003
+    title: Escalate when damping documentation is missing
+    when:
+      any:
+        - field: damping_basis_documented
+          op: "=="
+          value: false
+        - field: response_converged
+          op: "=="
+          value: false
+    decision: engineering_review_required
+    required_actions:
+      - Hold release of the shock adequacy decision.
+      - Request a documented damping basis and convergence evidence.
+    rationale: >
+      Missing damping rationale or missing convergence evidence makes the shock
+      adequacy decision non-reviewable.
+
+defaults:
+  fail_safe_decision: engineering_review_required
+  fail_safe_actions:
+    - Escalate when required inputs are missing.
+    - Escalate when the response quantity is not explicitly defined.
+
+notes:
+  - This starter rule set uses internal default thresholds and must be aligned to governing source documents during formal knowledge ingestion.
+  - The rule set screens adequacy; it does not replace detailed qualification requirements.
