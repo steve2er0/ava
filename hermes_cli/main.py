@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
 """
-Hermes CLI - Main entry point.
+AVA CLI - Main entry point.
 
 Usage:
-    hermes                     # Interactive chat (default)
-    hermes chat                # Interactive chat
-    hermes gateway             # Run gateway in foreground
-    hermes gateway start       # Start gateway as service
-    hermes gateway stop        # Stop gateway service
-    hermes gateway status      # Show gateway status
-    hermes gateway install     # Install gateway service
-    hermes gateway uninstall   # Uninstall gateway service
-    hermes setup               # Interactive setup wizard
-    hermes logout              # Clear stored authentication
-    hermes status              # Show status of all components
-    hermes cron                # Manage cron jobs
-    hermes cron list           # List cron jobs
-    hermes cron status         # Check if cron scheduler is running
-    hermes doctor              # Check configuration and dependencies
-    hermes honcho setup                    # Configure Honcho AI memory integration
-    hermes honcho status                   # Show Honcho config and connection status
-    hermes honcho sessions                 # List directory → session name mappings
-    hermes honcho map <name>               # Map current directory to a session name
-    hermes honcho peer                     # Show peer names and dialectic settings
-    hermes honcho peer --user NAME         # Set user peer name
-    hermes honcho peer --ai NAME           # Set AI peer name
-    hermes honcho peer --reasoning LEVEL   # Set dialectic reasoning level
-    hermes honcho mode                     # Show current memory mode
-    hermes honcho mode [hybrid|honcho|local]  # Set memory mode
-    hermes honcho tokens                   # Show token budget settings
-    hermes honcho tokens --context N       # Set session.context() token cap
-    hermes honcho tokens --dialectic N     # Set dialectic result char cap
-    hermes honcho identity                 # Show AI peer identity representation
-    hermes honcho identity <file>          # Seed AI peer identity from a file (SOUL.md etc.)
-    hermes honcho migrate                  # Step-by-step migration guide: OpenClaw native → Hermes + Honcho
-    hermes version             Show version
-    hermes update              Update to latest version
-    hermes uninstall           Uninstall Hermes Agent
-    hermes acp                 Run as an ACP server for editor integration
-    hermes sessions browse     Interactive session picker with search
+    ava                     # Interactive chat (default)
+    ava chat                # Interactive chat
+    ava gateway             # Run gateway in foreground
+    ava gateway start       # Start gateway as service
+    ava gateway stop        # Stop gateway service
+    ava gateway status      # Show gateway status
+    ava gateway install     # Install gateway service
+    ava gateway uninstall   # Uninstall gateway service
+    ava setup               # Interactive setup wizard
+    ava logout              # Clear stored authentication
+    ava status              # Show status of all components
+    ava cron                # Manage cron jobs
+    ava cron list           # List cron jobs
+    ava cron status         # Check if cron scheduler is running
+    ava doctor              # Check configuration and dependencies
+    ava honcho setup                    # Configure Honcho AI memory integration
+    ava honcho status                   # Show Honcho config and connection status
+    ava honcho sessions                 # List directory -> session name mappings
+    ava honcho map <name>               # Map current directory to a session name
+    ava honcho peer                     # Show peer names and dialectic settings
+    ava honcho peer --user NAME         # Set user peer name
+    ava honcho peer --ai NAME           # Set AI peer name
+    ava honcho peer --reasoning LEVEL   # Set dialectic reasoning level
+    ava honcho mode                     # Show current memory mode
+    ava honcho mode [hybrid|honcho|local]  # Set memory mode
+    ava honcho tokens                   # Show token budget settings
+    ava honcho tokens --context N       # Set session.context() token cap
+    ava honcho tokens --dialectic N     # Set dialectic result char cap
+    ava honcho identity                 # Show AI peer identity representation
+    ava honcho identity <file>          # Seed AI peer identity from a file (SOUL.md etc.)
+    ava honcho migrate                  # Step-by-step migration guide: OpenClaw native -> AVA + Honcho
+    ava version             Show version
+    ava update              Update to latest version
+    ava uninstall           Uninstall AVA
+    ava acp                 Run as an ACP server for editor integration
+    ava sessions browse     Interactive session picker with search
 
-    hermes claw migrate --dry-run  # Preview migration without changes
+    ava claw migrate --dry-run  # Preview migration without changes
 """
 
 # IMPORTANT: hermes_bootstrap must be the very first import — it sets up
@@ -66,7 +66,7 @@ import sys
 
 
 def _set_process_title() -> None:
-    """Set the process title to 'hermes' so tools like 'ps', 'top', and
+    """Set the process title to 'ava' so tools like 'ps', 'top', and
     'htop' show the app name instead of 'python3.xx'.
 
     Purely cosmetic — non-fatal on any platform.
@@ -77,13 +77,13 @@ def _set_process_title() -> None:
       2. ctypes ``prctl(PR_SET_NAME)`` (Linux only, 15-char limit).
       3. ctypes ``pthread_setname_np`` (macOS only, kernel thread name —
          changes lldb/top but not ``ps aux``).
-      4. No-op on Windows (the .exe name is already ``hermes.exe``).
+      4. No-op on Windows (the .exe name is already ``ava.exe``).
     """
     # Strategy 1: setproctitle (best — works on macOS, Linux, BSD)
     try:
         import setproctitle  # type: ignore[import-untyped]
 
-        setproctitle.setproctitle("hermes")
+        setproctitle.setproctitle("ava")
         return
     except ImportError:
         pass
@@ -96,11 +96,11 @@ def _set_process_title() -> None:
         system = platform.system()
         if system == "Linux":
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
-            libc.prctl(15, b"hermes", 0, 0, 0)  # PR_SET_NAME = 15
+            libc.prctl(15, b"ava", 0, 0, 0)  # PR_SET_NAME = 15
         elif system == "Darwin":
             libc = ctypes.CDLL("libc.dylib", use_errno=True)
-            libc.pthread_setname_np(b"hermes")
-        # Windows: the .exe name is already ``hermes.exe`` — nothing to do.
+            libc.pthread_setname_np(b"ava")
+        # Windows: the .exe name is already ``ava.exe`` — nothing to do.
     except Exception:
         pass
 
@@ -176,7 +176,7 @@ def _print_fast_version_info() -> None:
     from hermes_cli import __release_date__, __version__
 
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-    print(f"Hermes Agent v{__version__} ({__release_date__})")
+    print(f"AVA v{__version__} ({__release_date__})")
     print(f"Project: {project_root}")
     print(f"Python: {sys.version.split()[0]}")
 
@@ -1787,7 +1787,7 @@ def cmd_chat(args):
             for _ref in _retired_xai_refs:
                 sys.stderr.write(f"  \033[33m⚠\033[0m {format_issue(_ref)}\n")
             sys.stderr.write(f"  \033[2mMigration guide: {MIGRATION_GUIDE_URL}\033[0m\n")
-            sys.stderr.write("  \033[2mRun 'hermes doctor' for details.\033[0m\n\n")
+            sys.stderr.write("  \033[2mRun 'ava doctor' for details.\033[0m\n\n")
     except Exception:
         pass
 
@@ -1795,10 +1795,10 @@ def cmd_chat(args):
     if not _has_any_provider_configured():
         print()
         print(
-            "It looks like Hermes isn't configured yet -- no API keys or providers found."
+            "It looks like AVA isn't configured yet -- no API keys or providers found."
         )
         print()
-        print("  Run:  hermes setup")
+        print("  Run:  ava setup")
         print()
 
         from hermes_cli.setup import (
@@ -1820,7 +1820,7 @@ def cmd_chat(args):
             cmd_setup(args)
             return
         print()
-        print("You can run 'hermes setup' at any time to configure.")
+        print("You can run 'ava setup' at any time to configure.")
         sys.exit(1)
 
     # Start update check in background (runs while other init happens).
@@ -2171,7 +2171,7 @@ def cmd_postinstall(args):
 
     stamp_install_method("pip")
 
-    print("⚕ Hermes post-install bootstrap")
+    print("AVA post-install bootstrap")
     print()
 
     for dep in ("node", "browser", "ripgrep", "ffmpeg"):
@@ -6371,7 +6371,7 @@ def cmd_import(args):
 
 
 def _print_version_info(*, check_updates: bool = True) -> None:
-    print(f"Hermes Agent v{__version__} ({__release_date__})")
+    print(f"AVA v{__version__} ({__release_date__})")
     print(f"Project: {PROJECT_ROOT}")
 
     # Show Python version
@@ -6417,7 +6417,7 @@ def cmd_version(args):
 
 
 def cmd_uninstall(args):
-    """Uninstall Hermes Agent."""
+    """Uninstall AVA."""
     _require_tty("uninstall")
     from hermes_cli.uninstall import run_uninstall
 
@@ -9180,7 +9180,7 @@ def _discard_lockfile_churn(git_cmd, repo_root):
 
 
 def cmd_update(args):
-    """Update Hermes Agent to the latest version.
+    """Update AVA to the latest version.
 
     Thin wrapper around ``_cmd_update_impl``: installs hangup protection,
     runs the update, then restores stdio on the way out (even on
@@ -9194,7 +9194,7 @@ def cmd_update(args):
     )
 
     if is_managed():
-        managed_error("update Hermes Agent")
+        managed_error("update AVA")
         return
 
     # Docker users can't ``git pull`` — the image excludes ``.git`` from
@@ -9209,7 +9209,7 @@ def cmd_update(args):
 
     if getattr(args, "check", False):
         # --check honors --branch so the "any new commits?" answer matches
-        # what a subsequent `hermes update --branch=<x>` would actually pull.
+        # what a subsequent `ava update --branch=<x>` would actually pull.
         branch = _resolve_update_branch(args)
         _cmd_update_check(
             branch=branch,
@@ -9230,7 +9230,7 @@ def cmd_update(args):
 
 
 def _cmd_update_pip(args):
-    """Update Hermes via pip (for PyPI installs)."""
+    """Update AVA via pip (for PyPI installs)."""
     from hermes_cli import __version__
     from hermes_cli.config import is_uv_tool_install
 
@@ -9254,13 +9254,13 @@ def _cmd_update_pip(args):
         if not uv:
             print("✗ Detected a uv-tool install but `uv` is not on PATH; install uv and retry.")
             sys.exit(1)
-        cmd = [uv, "tool", "upgrade", "hermes-agent"]
+        cmd = [uv, "tool", "upgrade", "ava-agent"]
     elif pipx_managed and pipx:
         # pipx owns its own venv; ``pipx upgrade`` is the only correct path.
         # Matches scripts/auto-update.sh, which already uses pipx upgrade.
-        cmd = [pipx, "upgrade", "hermes-agent"]
+        cmd = [pipx, "upgrade", "ava-agent"]
     elif uv:
-        cmd = [uv, "pip", "install", "--upgrade", "hermes-agent"]
+        cmd = [uv, "pip", "install", "--upgrade", "ava-agent"]
         if in_venv:
             # Launcher shim runs the venv interpreter but doesn't export
             # VIRTUAL_ENV; without it uv errors "No virtual environment found".
@@ -9270,7 +9270,7 @@ def _cmd_update_pip(args):
             # interpreter, matching pip's default behaviour.
             cmd.insert(3, "--system")
     else:
-        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "hermes-agent"]
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "ava-agent"]
 
     print(f"→ Running: {' '.join(cmd)}")
     run_kwargs = {}
@@ -9281,7 +9281,7 @@ def _cmd_update_pip(args):
         print("✗ Update failed")
         sys.exit(1)
 
-    print("✓ Update complete! Restart hermes to use the new version.")
+    print("✓ Update complete! Restart ava to use the new version.")
 
 
 def _cmd_update_impl(args, gateway_mode: bool):
@@ -9295,7 +9295,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
     )
     assume_yes = bool(getattr(args, "yes", False))
 
-    print("⚕ Updating Hermes Agent...")
+    print("Updating AVA...")
     print()
 
     # On Windows, abort early if another hermes.exe is holding the venv shim
@@ -11778,8 +11778,8 @@ def _try_termux_fast_tui_launch() -> bool:
 
 
 def main():
-    """Main entry point for hermes CLI."""
-    # Cosmetic: make the process show up as 'hermes' instead of 'python3.11'
+    """Main entry point for AVA CLI."""
+    # Cosmetic: make the process show up as 'ava' instead of 'python3.11'
     # in ps/top/htop.  Non-fatal — just a nicer UX.
     _set_process_title()
 
@@ -12234,8 +12234,8 @@ def main():
     setup_parser = subparsers.add_parser(
         "setup",
         help="Interactive setup wizard",
-        description="Configure Hermes Agent with an interactive wizard. "
-        "Run a specific section: hermes setup model|tts|terminal|gateway|tools|agent",
+        description="Configure AVA with an interactive wizard. "
+        "Run a specific section: ava setup model|tts|terminal|gateway|tools|agent",
     )
     setup_parser.add_argument(
         "section",
@@ -12257,7 +12257,7 @@ def main():
         action="store_true",
         help="(Default on existing installs.) Re-run the full wizard, "
         "showing current values as defaults. Kept for backwards "
-        "compatibility — a bare 'hermes setup' now does this.",
+        "compatibility — a bare 'ava setup' now does this.",
     )
     setup_parser.add_argument(
         "--quick",
@@ -14315,7 +14315,7 @@ Examples:
     # =========================================================================
     update_parser = subparsers.add_parser(
         "update",
-        help="Update Hermes Agent to the latest version",
+        help="Update AVA to the latest version",
         description="Pull the latest changes from git and reinstall dependencies",
     )
     update_parser.add_argument(
@@ -14347,7 +14347,7 @@ Examples:
         "-y",
         action="store_true",
         default=False,
-        help="Assume yes for interactive prompts (config migration, stash restore). API-key entry is skipped; run 'hermes config migrate' separately for those.",
+        help="Assume yes for interactive prompts (config migration, stash restore). API-key entry is skipped; run 'ava config migrate' separately for those.",
     )
     update_parser.add_argument(
         "--branch",
@@ -14355,7 +14355,7 @@ Examples:
         metavar="NAME",
         help=(
             "Update against this branch instead of the default (main). "
-            "If the local checkout is on a different branch, hermes will "
+            "If the local checkout is on a different branch, ava will "
             "switch to the requested branch first (auto-stashing any "
             "uncommitted changes)."
         ),
@@ -14373,8 +14373,8 @@ Examples:
     # =========================================================================
     uninstall_parser = subparsers.add_parser(
         "uninstall",
-        help="Uninstall Hermes Agent",
-        description="Remove Hermes Agent from your system. Can keep configs/data for reinstall.",
+        help="Uninstall AVA",
+        description="Remove AVA from your system. Can keep configs/data for reinstall.",
     )
     uninstall_parser.add_argument(
         "--full",
