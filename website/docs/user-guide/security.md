@@ -652,7 +652,7 @@ The trade-off this fixes:
 How it works:
 
 1. A backend module calls `ensure("feature.name")` at the top of its first-import path.
-2. If the deps are missing, `ensure` checks `security.allow_lazy_installs` in `config.yaml` (default `true`) and runs a venv-scoped `pip install` for the allowlisted specs.
+2. If the deps are missing, `ensure` checks `security.allow_lazy_installs` in `config.yaml` (default `false`) and runs a venv-scoped `pip install` for the allowlisted specs only when explicitly enabled.
 3. If the install fails or the user has disabled lazy installs, the call raises `FeatureUnavailable` with the actual pip stderr and a pointer at `hermes tools`.
 
 Security guarantees enforced by `tools/lazy_deps.py`:
@@ -662,7 +662,7 @@ Security guarantees enforced by `tools/lazy_deps.py`:
 | Venv-scoped only | Installs target `sys.executable` in the active venv — never the system Python |
 | PyPI by name only | Specs accept `"package>=1.0,<2"` syntax. No `--index-url`, `git+https://`, or file: paths — a malicious `config.yaml` cannot redirect the install |
 | Allowlist | Only specs that appear in the in-tree `LAZY_DEPS` map can be installed via this path. A typo in a feature name does NOT get install-anything semantics |
-| Opt-out | Set `security.allow_lazy_installs: false` to disable runtime installs entirely. Useful for restricted networks or strict security postures |
+| Opt-in | Set `security.allow_lazy_installs: true` to enable runtime installs. Leave it disabled for restricted networks or strict security postures |
 | No silent retries | Failures surface as `FeatureUnavailable` — no caching of bad state, no retry storms |
 
 To disable runtime installs:
@@ -670,7 +670,7 @@ To disable runtime installs:
 ```yaml
 # ~/.hermes/config.yaml
 security:
-  allow_lazy_installs: false
+  allow_lazy_installs: true
 ```
 
 When disabled, backends that need optional deps will tell the user to run the install manually (`pip install …`) or pick a different backend via `hermes tools`.

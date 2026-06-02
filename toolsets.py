@@ -26,59 +26,28 @@ Usage:
 from typing import List, Dict, Any, Set, Optional
 
 
-# Shared tool list for CLI and all messaging platform toolsets.
-# Edit this once to update all platforms simultaneously.
+# Shared secure-by-default tool list for CLI and messaging platform toolsets.
+# Networked tools such as web, browser, image generation, TTS, delegation,
+# cron, messaging, Home Assistant, and computer-use are opt-in toolsets.
 _HERMES_CORE_TOOLS = [
-    # Web
-    "web_search", "web_extract",
     # Terminal + process management
     "terminal", "process",
     # File manipulation
     "read_file", "write_file", "patch", "search_files",
-    # Vision + image generation
-    "vision_analyze", "image_generate",
-    # Skills
-    "skills_list", "skill_view", "skill_manage",
-    # Browser automation
-    "browser_navigate", "browser_snapshot", "browser_click",
-    "browser_type", "browser_scroll", "browser_back",
-    "browser_press", "browser_get_images",
-    "browser_vision", "browser_console", "browser_cdp", "browser_dialog",
-    # Text-to-speech
-    "text_to_speech",
+    # Local skill inspection only; installation/management is opt-in.
+    "skills_list", "skill_view",
     # Planning & memory
     "todo", "memory",
     # Session history search
     "session_search",
     # Clarifying questions
     "clarify",
-    # Code execution + delegation
-    "execute_code", "delegate_task",
-    # Cronjob management
-    "cronjob",
-    # Cross-platform messaging (gated on gateway running via check_fn)
-    "send_message",
-    # Home Assistant smart home control (gated on HASS_TOKEN via check_fn)
-    "ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service",
-    # Kanban multi-agent coordination — only in schema when the agent is
-    # spawned as a kanban worker (HERMES_KANBAN_TASK env set) or the current
-    # profile explicitly enables the kanban toolset. Gated via check_fn in
-    # tools/kanban_tools.py.
-    "kanban_show", "kanban_list",
-    "kanban_complete", "kanban_block", "kanban_heartbeat",
-    "kanban_comment", "kanban_create", "kanban_link",
-    "kanban_unblock",
-    # Computer use (macOS, gated on cua-driver being installed via check_fn)
-    "computer_use",
 ]
 
 # Webhook events may originate from untrusted third-party content (for example,
 # public PR titles/comments). Keep the default webhook toolset intentionally
 # constrained to avoid local file/system execution by prompt injection.
 _HERMES_WEBHOOK_SAFE_TOOLS = [
-    "web_search",
-    "web_extract",
-    "vision_analyze",
     "clarify",
 ]
 
@@ -338,10 +307,10 @@ TOOLSETS = {
     },
     
     # ==========================================================================
-    # Full Hermes toolsets (CLI + messaging platforms)
+    # Secure AVA toolsets (CLI + messaging platforms)
     #
-    # All platforms share the same core tools (including send_message,
-    # which is gated on gateway running via its check_fn).
+    # All platforms share the same local-first core tools. Networked and
+    # integration tools must be enabled as explicit opt-in toolsets.
     # ==========================================================================
 
     "hermes-acp": {
@@ -397,30 +366,27 @@ TOOLSETS = {
     },
     
     "hermes-cli": {
-        "description": "Full interactive CLI toolset - all default tools plus cronjob management",
+        "description": "Secure interactive CLI toolset - local coding, files, memory, and session search",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-cron": {
-        # Mirrors hermes-cli so cron's "default" toolset is the same set of
-        # core tools users see interactively — then `hermes tools` filters
-        # them down per the platform config. _DEFAULT_OFF_TOOLSETS (moa,
-        # homeassistant) are excluded by _get_platform_tools() unless
-        # the user explicitly enables them.
-        "description": "Default cron toolset - same core tools as hermes-cli; gated by `hermes tools`",
+        # Mirrors hermes-cli so cron's "default" toolset is local-first unless
+        # the user explicitly enables additional toolsets.
+        "description": "Secure cron toolset - same local-first core tools as hermes-cli",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-telegram": {
-        "description": "Telegram bot toolset - full access for personal use (terminal has safety checks)",
+        "description": "Telegram bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
     "hermes-discord": {
-        "description": "Discord bot toolset - full access (terminal has safety checks via dangerous command approval)",
+        "description": "Discord bot toolset - secure local-first core tools plus Discord helpers",
         "tools": _HERMES_CORE_TOOLS + [
             "discord",
             "discord_admin",
@@ -429,19 +395,19 @@ TOOLSETS = {
     },
     
     "hermes-whatsapp": {
-        "description": "WhatsApp bot toolset - similar to Telegram (personal messaging, more trusted)",
+        "description": "WhatsApp bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
     "hermes-slack": {
-        "description": "Slack bot toolset - full access for workspace use (terminal has safety checks)",
+        "description": "Slack bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
     "hermes-signal": {
-        "description": "Signal bot toolset - encrypted messaging platform (full access)",
+        "description": "Signal bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
@@ -465,25 +431,25 @@ TOOLSETS = {
     },
 
     "hermes-mattermost": {
-        "description": "Mattermost bot toolset - self-hosted team messaging (full access)",
+        "description": "Mattermost bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-matrix": {
-        "description": "Matrix bot toolset - decentralized encrypted messaging (full access)",
+        "description": "Matrix bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-dingtalk": {
-        "description": "DingTalk bot toolset - enterprise messaging platform (full access)",
+        "description": "DingTalk bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-feishu": {
-        "description": "Feishu/Lark bot toolset - enterprise messaging via Feishu/Lark (full access)",
+        "description": "Feishu/Lark bot toolset - secure local-first core tools plus Feishu helpers",
         "tools": _HERMES_CORE_TOOLS + [
             "feishu_doc_read",
             "feishu_drive_list_comments",
@@ -495,25 +461,25 @@ TOOLSETS = {
     },
 
     "hermes-weixin": {
-        "description": "Weixin bot toolset - personal WeChat messaging via iLink (full access)",
+        "description": "Weixin bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-qqbot": {
-        "description": "QQBot toolset - QQ messaging via Official Bot API v2 (full access)",
+        "description": "QQBot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-wecom": {
-        "description": "WeCom bot toolset - enterprise WeChat messaging (full access)",
+        "description": "WeCom bot toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
 
     "hermes-wecom-callback": {
-        "description": "WeCom callback toolset - enterprise self-built app messaging (full access)",
+        "description": "WeCom callback toolset - secure local-first core tools",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },

@@ -74,7 +74,8 @@ DETECTED_BROWSER_EXECUTABLE=""
 # Options
 USE_VENV=true
 RUN_SETUP=true
-SKIP_BROWSER=false
+SKIP_BROWSER=true
+HAS_NODE=false
 NO_SKILLS=false
 BRANCH="main"
 INSTALL_COMMIT=""
@@ -108,6 +109,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-browser|--no-playwright)
             SKIP_BROWSER=true
+            shift
+            ;;
+        --with-browser)
+            SKIP_BROWSER=false
             shift
             ;;
         --no-skills)
@@ -169,7 +174,8 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --no-venv      Don't create virtual environment"
             echo "  --skip-setup   Skip interactive setup wizard"
-            echo "  --skip-browser Skip Playwright/Chromium install (browser tools won't work)"
+            echo "  --with-browser Install optional Node/browser tooling"
+            echo "  --skip-browser Keep optional browser tooling disabled (default)"
             echo "  --no-skills    Start with a blank slate — seed no bundled skills, and"
             echo "                   write \$AVA_HOME/.no-bundled-skills so future"
             echo "                   'ava update' runs never inject bundled skills either"
@@ -199,7 +205,7 @@ while [[ $# -gt 0 ]]; do
             echo "                   Supported: node, browser, ripgrep, ffmpeg"
             echo "                   Does NOT clone repo or create venv"
             echo "  --postinstall  Run post-install setup only (for pip users)"
-            echo "                   Installs optional deps + runs ava setup"
+            echo "                   Runs ava setup; optional browser deps need --with-browser"
             echo "                   Does NOT clone repo or create venv"
             exit 0
             ;;
@@ -697,8 +703,10 @@ ensure_fts5() {
     local _tmp_uv_dir _fresh_uv
     _tmp_uv_dir="$(mktemp -d 2>/dev/null || echo "/tmp/hermes-fresh-uv.$$")"
     mkdir -p "$_tmp_uv_dir"
-    if curl -LsSf https://astral.sh/uv/install.sh 2>/dev/null \
-            | env UV_INSTALL_DIR="$_tmp_uv_dir" UV_UNMANAGED_INSTALL="$_tmp_uv_dir" sh >/dev/null 2>&1; then
+    local _fresh_uv_installer
+    _fresh_uv_installer="$_tmp_uv_dir/install-uv.sh"
+    if curl -LsSf https://astral.sh/uv/install.sh -o "$_fresh_uv_installer" 2>/dev/null \
+            && env UV_INSTALL_DIR="$_tmp_uv_dir" UV_UNMANAGED_INSTALL="$_tmp_uv_dir" sh "$_fresh_uv_installer" >/dev/null 2>&1; then
         _fresh_uv="$_tmp_uv_dir/uv"
         if [ -x "$_fresh_uv" ] && _reinstall_python_with_fts5 "$_fresh_uv"; then
             log_success "FTS5 available ($PYTHON_FOUND_VERSION)"
@@ -1470,10 +1478,18 @@ install_deps() {
             log_success "All dependencies installed"
             return 0
         fi
-        log_warn "uv.lock sync failed (see uv output above), falling back to PyPI resolve..."
+        log_warn "uv.lock sync failed (see uv output above)."
     else
-        log_info "uv.lock not found — falling back to PyPI resolve (no hash verification)"
+        log_info "uv.lock not found."
     fi
+
+    if [ "${AVA_ALLOW_UNLOCKED_INSTALLS:-}" != "true" ] && [ "${HERMES_ALLOW_UNLOCKED_INSTALLS:-}" != "true" ]; then
+        log_error "Refusing unlocked PyPI dependency resolve by default."
+        log_info "Fix uv.lock / the locked dependency set, or set AVA_ALLOW_UNLOCKED_INSTALLS=true"
+        log_info "to allow the legacy unlocked fallback for this install."
+        exit 1
+    fi
+    log_warn "AVA_ALLOW_UNLOCKED_INSTALLS=true; falling back to unlocked PyPI resolve."
 
     # Multi-tier fallback. The point of the tiers is that ONE compromised
     # PyPI package (a worm-poisoned release that gets quarantined, like
@@ -2364,7 +2380,12 @@ postinstall_mode() {
 
     log_info "Post-install mode: setting up AVA for pip install"
 
-    check_node
+    if [ "$SKIP_BROWSER" = false ]; then
+        check_node
+    else
+        HAS_NODE=false
+        log_info "Skipping Node.js check/install (browser tools disabled by default; use --with-browser)"
+    fi
     check_network_prerequisites
     install_system_packages
 
@@ -2492,7 +2513,12 @@ run_stage_body() {
             install_uv
             check_python
             check_git
-            check_node
+            if [ "$SKIP_BROWSER" = false ] || [ "$INCLUDE_DESKTOP" = true ]; then
+                check_node
+            else
+                HAS_NODE=false
+                log_info "Skipping Node.js check/install (browser tools disabled by default; use --with-browser)"
+            fi
             check_network_prerequisites
             install_system_packages
             ;;
@@ -2522,8 +2548,13 @@ run_stage_body() {
             detect_os
             resolve_install_layout
             require_install_dir
-            check_node
-            install_node_deps
+            if [ "$SKIP_BROWSER" = false ]; then
+                check_node
+                install_node_deps
+            else
+                HAS_NODE=false
+                log_info "Skipping Node/browser dependency setup (browser tools disabled by default; use --with-browser)"
+            fi
             ;;
         path)
             detect_os
@@ -2624,14 +2655,23 @@ main() {
     install_uv
     check_python
     check_git
-    check_node
+    if [ "$SKIP_BROWSER" = false ] || [ "$INCLUDE_DESKTOP" = true ]; then
+        check_node
+    else
+        HAS_NODE=false
+        log_info "Skipping Node.js check/install (browser tools disabled by default; use --with-browser)"
+    fi
     check_network_prerequisites
     install_system_packages
 
     clone_repo
     setup_venv
     install_deps
-    install_node_deps
+    if [ "$SKIP_BROWSER" = false ]; then
+        install_node_deps
+    else
+        log_info "Skipping Node/browser dependency setup (browser tools disabled by default; use --with-browser)"
+    fi
     setup_path
     copy_config_templates
     run_setup_wizard

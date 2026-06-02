@@ -527,25 +527,25 @@ agent:
 #   platform_toolsets:
 #     telegram: [web, terminal, file, todo]
 #
-#   # Custom: CLI without browser or image gen:
+#   # Custom: CLI with selected opt-in network/tool integrations:
 #   platform_toolsets:
 #     cli: [web, terminal, file, skills, todo, tts, cronjob]
 #
-#   # Restrictive: Discord gets read-only tools only:
+#   # Restrictive: Discord gets local read-only/context tools only:
 #   platform_toolsets:
-#     discord: [web, vision, skills, todo]
+#     discord: [file, skills, todo]
 #
 # If not set, defaults are:
-#   cli:           hermes-cli            (everything + cronjob management)
-#   telegram:      hermes-telegram       (terminal, file, web, vision, image, tts, browser, skills, todo, cronjob, messaging)
-#   discord:       hermes-discord        (same as telegram)
-#   whatsapp:      hermes-whatsapp       (same as telegram)
-#   slack:         hermes-slack          (same as telegram)
-#   signal:        hermes-signal         (same as telegram)
-#   homeassistant: hermes-homeassistant  (same as telegram)
-#   qqbot:            hermes-qqbot            (same as telegram)
-#   teams:            hermes-teams            (same as telegram)
-#   google_chat:      hermes-google_chat      (same as telegram)
+#   cli:           hermes-cli            (secure local-first tools)
+#   telegram:      hermes-telegram       (same secure local-first core)
+#   discord:       hermes-discord        (core + Discord helpers)
+#   whatsapp:      hermes-whatsapp       (same secure local-first core)
+#   slack:         hermes-slack          (same secure local-first core)
+#   signal:        hermes-signal         (same secure local-first core)
+#   homeassistant: hermes-homeassistant  (same secure local-first core)
+#   qqbot:         hermes-qqbot          (same secure local-first core)
+#   teams:         hermes-teams          (same secure local-first core)
+#   google_chat:   hermes-google_chat    (same secure local-first core)
 #
 platform_toolsets:
   cli: [hermes-cli]
@@ -611,12 +611,13 @@ platform_toolsets:
 #   cronjob      - cronjob (create/list/update/pause/resume/run/remove scheduled tasks)
 #
 # PRESETS (curated bundles):
-#   hermes-cli       - All of the above except send_message
-#   hermes-telegram  - terminal, file, web, vision, image_gen, tts, browser,
-#                      skills, todo, cronjob, send_message
-#   hermes-discord   - Same as hermes-telegram
-#   hermes-whatsapp  - Same as hermes-telegram
-#   hermes-slack     - Same as hermes-telegram
+#   hermes-cli       - secure local-first coding/files/memory/session tools
+#   hermes-telegram  - same secure local-first core for Telegram
+#   hermes-discord   - secure local-first core plus Discord helpers
+#   hermes-whatsapp  - same secure local-first core
+#   hermes-slack     - same secure local-first core
+#   Add web, browser, vision, image_gen, tts, cronjob, send_message, etc.
+#   explicitly when you want those networked integrations available.
 #
 # COMPOSITE:
 #   debugging    - terminal + web + file

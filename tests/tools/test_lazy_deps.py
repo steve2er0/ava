@@ -127,23 +127,23 @@ class TestSecurityGating:
         )
         assert ld._allow_lazy_installs() is False
 
-    def test_default_allows(self, monkeypatch):
+    def test_default_blocks(self, monkeypatch):
         monkeypatch.delenv("HERMES_DISABLE_LAZY_INSTALLS", raising=False)
         monkeypatch.setattr(
             "hermes_cli.config.load_config",
             lambda: {"security": {}},
         )
-        assert ld._allow_lazy_installs() is True
+        assert ld._allow_lazy_installs() is False
 
-    def test_config_failure_fails_open(self, monkeypatch):
-        # If config can't be read at all, we ALLOW installs rather than
-        # blocking the user out of their own backends.
+    def test_config_failure_fails_closed(self, monkeypatch):
+        # If config can't be read at all, runtime package install remains
+        # blocked because it must be an explicit user choice.
         monkeypatch.delenv("HERMES_DISABLE_LAZY_INSTALLS", raising=False)
         monkeypatch.setattr(
             "hermes_cli.config.load_config",
             lambda: (_ for _ in ()).throw(RuntimeError("config broken")),
         )
-        assert ld._allow_lazy_installs() is True
+        assert ld._allow_lazy_installs() is False
 
 
 # ---------------------------------------------------------------------------

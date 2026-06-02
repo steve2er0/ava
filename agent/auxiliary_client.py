@@ -5,29 +5,21 @@ session search, web extraction, vision analysis, browser vision) picks up
 the best available backend without duplicating fallback logic.
 
 Resolution order for text tasks (auto mode):
-  1. User's main provider + main model (used regardless of provider type —
-     aggregators, direct API-key providers, native Anthropic, Codex, etc.)
-  2. OpenRouter  (OPENROUTER_API_KEY)
-  3. Nous Portal (~/.hermes/auth.json active provider)
-  4. Custom endpoint (config.yaml model.base_url + OPENAI_API_KEY)
-  5. Native Anthropic
-  6. Direct API-key providers (z.ai/GLM, Kimi/Moonshot, MiniMax, MiniMax-CN)
-  7. None
+  1. User's main OpenAI/Codex provider + main model.
+  2. OpenAI API (OPENAI_API_KEY), using api.openai.com only.
+  3. None
 
 Resolution order for vision/multimodal tasks (auto mode):
-  1. Selected main provider, if it is one of the supported vision backends below
-  2. OpenRouter
-  3. Nous Portal
-  4. Native Anthropic
-  5. Custom endpoint (for local vision models: Qwen-VL, LLaVA, Pixtral, etc.)
-  6. None
+  1. Selected main OpenAI/Codex provider, if it supports vision
+  2. OpenAI API (OPENAI_API_KEY)
+  3. None
 
-Codex OAuth (ChatGPT-account auth) is intentionally NOT in either
-fallback chain: OpenAI gates this endpoint behind an undocumented,
-shifting model allow-list, so "just try Codex with a hardcoded model"
-rots on its own.  Codex is used only when the user's main provider *is*
-openai-codex (Step 1 above) or when a caller explicitly requests it with
-a model (auxiliary.<task>.provider + auxiliary.<task>.model).
+Codex OAuth (ChatGPT-account auth) is intentionally NOT in either fallback
+chain: OpenAI gates this endpoint behind an undocumented, shifting model
+allow-list, so "just try Codex with a hardcoded model" rots on its own.
+Codex is used only when the user's main provider *is* openai-codex
+(Step 1 above) or when a caller explicitly requests it with a model
+(auxiliary.<task>.provider + auxiliary.<task>.model).
 
 Per-task overrides are configured in config.yaml under the ``auxiliary:`` section
 (e.g. ``auxiliary.vision.provider``, ``auxiliary.compression.model``).
@@ -35,9 +27,8 @@ Default "auto" follows the chains above.
 
 Payment / credit exhaustion fallback:
   When a resolved provider returns HTTP 402 or a credit-related error,
-  call_llm() automatically retries with the next available provider in the
-  auto-detection chain.  This handles the common case where a user depletes
-  their OpenRouter balance but has Codex OAuth or another provider available.
+  call_llm() automatically retries with the next available OpenAI/Codex
+  provider in the auto-detection chain.
 """
 
 import json
@@ -129,6 +120,11 @@ def _extract_url_query_params(url: str):
 _stale_base_url_warned = False
 
 _PROVIDER_ALIASES = {
+    "codex": "openai-codex",
+    "openai_codex": "openai-codex",
+    "chatgpt-codex": "openai-codex",
+    "openai": "openai-api",
+    "openai_api": "openai-api",
     "google": "gemini",
     "google-gemini": "gemini",
     "google-ai-studio": "gemini",
@@ -161,6 +157,8 @@ _PROVIDER_ALIASES = {
     "tencentmaas": "tencent-tokenhub",
 }
 
+_OPENAI_ONLY_AUX_PROVIDERS = frozenset({"auto", "openai-codex", "openai-api"})
+
 
 def _normalize_aux_provider(provider: Optional[str]) -> str:
     normalized = (provider or "auto").strip().lower()
@@ -169,8 +167,6 @@ def _normalize_aux_provider(provider: Optional[str]) -> str:
         if not suffix:
             return "custom"
         normalized = suffix
-    if normalized == "codex":
-        return "openai-codex"
     if normalized == "main":
         # Resolve to the user's actual main provider so named custom providers
         # and non-aggregator providers (DeepSeek, Alibaba, etc.) work correctly.
@@ -259,6 +255,7 @@ def _get_aux_model_for_provider(provider_id: str) -> str:
 # plus providers we intentionally keep pinned here (e.g. Anthropic predates
 # profiles). New providers should set default_aux_model on their profile instead.
 _API_KEY_PROVIDER_AUX_MODELS_FALLBACK: Dict[str, str] = {
+    "openai-api": "gpt-4o-mini",
     "gemini": "gemini-3-flash-preview",
     "zai": "glm-4.5-flash",
     "kimi-coding": "kimi-k2-turbo-preview",
@@ -429,6 +426,11 @@ _AUTH_JSON_PATH = get_hermes_home() / "auth.json"
 # they want explicitly (from config.yaml model.model, auxiliary.<task>.model,
 # or the user's active Codex model selection).
 _CODEX_AUX_BASE_URL = "https://chatgpt.com/backend-api/codex"
+
+
+def _is_openai_api_base_url(base_url: Optional[str]) -> bool:
+    """Return True only for the first-party OpenAI API origin."""
+    return base_url_host_matches(str(base_url or ""), "api.openai.com")
 
 
 def _codex_cloudflare_headers(access_token: str) -> Dict[str, str]:
@@ -1429,6 +1431,12 @@ def _resolve_api_key_provider() -> Tuple[Optional[OpenAI], Optional[str]]:
 
             raw_base_url = _pool_runtime_base_url(entry, pconfig.inference_base_url) or pconfig.inference_base_url
             base_url = _to_openai_base_url(raw_base_url)
+            if provider_id == "openai-api" and not _is_openai_api_base_url(base_url):
+                logger.warning(
+                    "Auxiliary OpenAI API provider ignored non-OpenAI base_url: %s",
+                    raw_base_url,
+                )
+                continue
             model = _get_aux_model_for_provider(provider_id) or None
             if model is None:
                 continue  # skip provider if we don't know a valid aux model
@@ -1466,6 +1474,12 @@ def _resolve_api_key_provider() -> Tuple[Optional[OpenAI], Optional[str]]:
 
         raw_base_url = str(creds.get("base_url", "")).strip().rstrip("/") or pconfig.inference_base_url
         base_url = _to_openai_base_url(raw_base_url)
+        if provider_id == "openai-api" and not _is_openai_api_base_url(base_url):
+            logger.warning(
+                "Auxiliary OpenAI API provider ignored non-OpenAI base_url: %s",
+                raw_base_url,
+            )
+            continue
         model = _get_aux_model_for_provider(provider_id) or None
         if model is None:
             continue  # skip provider if we don't know a valid aux model
@@ -2136,7 +2150,7 @@ def _normalize_main_runtime(main_runtime: Optional[Dict[str, Any]]) -> Dict[str,
 
 
 def _get_provider_chain() -> List[tuple]:
-    """Return the ordered provider detection chain.
+    """Return the ordered OpenAI/Codex provider detection chain.
 
     Built at call time (not module level) so that test patches
     on the ``_try_*`` functions are picked up correctly.
@@ -2148,12 +2162,7 @@ def _get_provider_chain() -> List[tuple]:
     provider *is* openai-codex (see Step 1 of ``_resolve_auto``) or when
     a caller explicitly requests it with a model.
     """
-    return [
-        ("openrouter", _try_openrouter),
-        ("nous", _try_nous),
-        ("local/custom", _try_custom_endpoint),
-        ("api-key", _resolve_api_key_provider),
-    ]
+    return [("openai-api", _resolve_api_key_provider)]
 
 
 # ── Auxiliary "recently 402'd" unhealthy-provider cache ────────────────────
@@ -2184,6 +2193,7 @@ _aux_unhealthy_logged_at: Dict[str, float] = {}
 # back to the chain labels used by _get_provider_chain(). Keep in sync
 # with the alias map in _try_payment_fallback below.
 _AUX_UNHEALTHY_LABEL_ALIASES = {
+    "openai-api": "openai-api",
     "openrouter": "openrouter",
     "nous": "nous",
     "custom": "local/custom",
@@ -2196,8 +2206,7 @@ _AUX_UNHEALTHY_LABEL_ALIASES = {
 def _normalize_chain_label(provider: str) -> str:
     """Normalize a resolved_provider value to a chain label used by
     ``_get_provider_chain()``. Falls back to the lowercased input for
-    direct API-key providers (deepseek, alibaba, minimax, etc.) which
-    each report their own provider name from the api-key chain.
+    direct API-key providers.
     """
     if not provider:
         return ""
@@ -2983,15 +2992,13 @@ def _resolve_auto(main_runtime: Optional[Dict[str, Any]] = None) -> Tuple[Option
     """Full auto-detection chain.
 
     Priority:
-      1. User's main provider + main model, regardless of provider type.
+      1. User's main OpenAI/Codex provider + main model.
          This means auxiliary tasks (compression, vision, web extraction,
          session search, etc.) use the same model the user configured for
-         chat.  Users on OpenRouter/Nous get their chosen chat model; users
-         on DeepSeek/ZAI/Alibaba get theirs; etc.  Running aux tasks on the
-         user's picked model keeps behavior predictable — no surprise
-         switches to a cheap fallback model for side tasks.
-      2. OpenRouter → Nous → custom → Codex → API-key providers (fallback
-         chain, only used when the main provider has no working client).
+         chat. Running aux tasks on the user's picked model keeps behavior
+         predictable.
+      2. OpenAI API via OPENAI_API_KEY, only when the main provider has no
+         working client.
     """
     global auxiliary_is_nous, _stale_base_url_warned
     auxiliary_is_nous = False  # Reset — _try_nous() will set True if it wins
@@ -3036,10 +3043,9 @@ def _resolve_auto(main_runtime: Optional[Dict[str, Any]] = None) -> Tuple[Option
     # ── Step 1: main provider + main model → use them directly ──
     #
     # This is the primary aux backend for every user.  "auto" means
-    # "use my main chat model for side tasks as well" — including users
-    # on aggregators (OpenRouter, Nous) who previously got routed to a
-    # cheap provider-side default.  Explicit per-task overrides set via
-    # config.yaml (auxiliary.<task>.provider) still win over this.
+    # "use my main chat model for side tasks as well." Explicit per-task
+    # overrides set via config.yaml (auxiliary.<task>.provider) still win
+    # over this.
     main_provider = str(runtime_provider or _read_main_provider() or "")
     main_model = str(runtime_model or _read_main_model() or "")
     if (main_provider and main_model
@@ -3077,7 +3083,7 @@ def _resolve_auto(main_runtime: Optional[Dict[str, Any]] = None) -> Tuple[Option
                             main_provider, resolved or main_model)
                 return client, resolved or main_model
 
-    # ── Step 2: aggregator / fallback chain ──────────────────────────────
+    # ── Step 2: OpenAI API fallback chain ────────────────────────────────
     tried = []
     for label, try_fn in _get_provider_chain():
         if _is_provider_unhealthy(label):
@@ -3095,7 +3101,7 @@ def _resolve_auto(main_runtime: Optional[Dict[str, Any]] = None) -> Tuple[Option
         tried.append(label)
     logger.warning("Auxiliary auto-detect: no provider available (tried: %s). "
                    "Compression, summarization, and memory flush will not work. "
-                   "Set OPENROUTER_API_KEY or configure a local model in config.yaml.",
+                   "Run `ava model` for Codex auth or set OPENAI_API_KEY.",
                    ", ".join(tried))
     return None, None
 
@@ -3204,11 +3210,8 @@ def resolve_provider_client(
     transparently.
 
     Args:
-        provider: Provider identifier.  One of:
-            "openrouter", "nous", "openai-codex" (or "codex"),
-            "zai", "kimi-coding", "minimax", "minimax-cn",
-            "custom" (OPENAI_BASE_URL + OPENAI_API_KEY),
-            "auto" (full auto-detection chain).
+        provider: Provider identifier. One of "auto", "openai-codex"
+            (or "codex"), or "openai-api".
         model: Model slug override.  If None, uses the provider's default
                auxiliary model.
         async_mode: If True, return an async-compatible client.
@@ -3235,6 +3238,13 @@ def resolve_provider_client(
     original_provider = (provider or "").strip().lower()
     # Normalise aliases
     provider = _normalize_aux_provider(provider)
+    if provider not in _OPENAI_ONLY_AUX_PROVIDERS:
+        logger.warning(
+            "Auxiliary provider %r is disabled; AVA supports OpenAI/Codex "
+            "auxiliary calls only.",
+            original_provider or provider,
+        )
+        return None, None
 
     # Universal model-resolution fallback chain.  Callers (notably title
     # generation, vision, session search, and other auxiliary tasks) can
@@ -3667,6 +3677,12 @@ def resolve_provider_client(
         # built-in provider name but targets a user-specified endpoint.
         if explicit_base_url:
             base_url = _to_openai_base_url(explicit_base_url.strip().rstrip("/"))
+        if provider == "openai-api" and not _is_openai_api_base_url(base_url):
+            logger.warning(
+                "resolve_provider_client: openai-api ignored non-OpenAI base_url: %s",
+                raw_base_url,
+            )
+            return None, None
 
         default_model = _get_aux_model_for_provider(provider)
         final_model = _normalize_resolved_model(model or default_model, provider)
@@ -3871,10 +3887,7 @@ def get_async_text_auxiliary_client(task: str = "", *, main_runtime: Optional[Di
     )
 
 
-_VISION_AUTO_PROVIDER_ORDER = (
-    "openrouter",
-    "nous",
-)
+_VISION_AUTO_PROVIDER_ORDER = ("openai-api",)
 
 
 def _main_model_supports_vision(provider: str, model: Optional[str]) -> bool:
@@ -3917,21 +3930,10 @@ def _resolve_strict_vision_backend(
     model: Optional[str] = None,
 ) -> Tuple[Optional[Any], Optional[str]]:
     provider = _normalize_vision_provider(provider)
-    if provider == "copilot":
-        return resolve_provider_client("copilot", model, is_vision=True)
-    if provider == "openrouter":
-        return _try_openrouter(model=model)
-    if provider == "nous":
-        return _try_nous(vision=True)
-    if provider == "openai-codex":
-        # Route through resolve_provider_client so the caller's explicit
-        # model is used.  There is no safe default Codex model (shifting
-        # allow-list); callers must specify via auxiliary.<task>.model.
-        return resolve_provider_client("openai-codex", model, is_vision=True)
-    if provider == "anthropic":
-        return _try_anthropic()
-    if provider == "custom":
-        return _try_custom_endpoint()
+    if provider in {"openai-codex", "openai-api"}:
+        # Route through resolve_provider_client so explicit model/base provider
+        # handling remains centralized.
+        return resolve_provider_client(provider, model, is_vision=True)
     return None, None
 
 
@@ -3942,7 +3944,7 @@ def _strict_vision_backend_available(provider: str) -> bool:
 def get_available_vision_backends() -> List[str]:
     """Return the currently available vision backends in auto-selection order.
 
-    Order: active provider → OpenRouter → Nous → stop.  This is the single
+    Order: active OpenAI/Codex provider -> OpenAI API -> stop.  This is the single
     source of truth for setup, tool gating, and runtime auto-routing of
     vision tasks.
     """
@@ -3957,7 +3959,7 @@ def get_available_vision_backends() -> List[str]:
             client, _ = resolve_provider_client(main_provider, _read_main_model())
             if client is not None:
                 available.append(main_provider)
-    # 2. OpenRouter, 3. Nous — skip if already covered by main provider.
+    # 2. OpenAI API — skip if already covered by main provider.
     for p in _VISION_AUTO_PROVIDER_ORDER:
         if p not in available and _strict_vision_backend_available(p):
             available.append(p)
@@ -4011,16 +4013,15 @@ def resolve_vision_provider_client(
 
     if requested == "auto":
         # Vision auto-detection order:
-        #   1. User's main provider + main model (including aggregators).
+        #   1. User's main OpenAI/Codex provider + main model.
         #      _PROVIDER_VISION_MODELS provides per-provider vision model
         #      overrides when the provider has a dedicated multimodal model
         #      that differs from the chat model (e.g. xiaomi → mimo-v2-omni,
         #      zai → glm-5v-turbo). Nous is the exception: it has a dedicated
         #      strict vision backend with tier-aware defaults, so it must not
         #      fall through to the user's text chat model here.
-        #   2. OpenRouter  (vision-capable aggregator fallback)
-        #   3. Nous Portal (vision-capable aggregator fallback)
-        #   4. Stop
+        #   2. OpenAI API
+        #   3. Stop
         main_provider = _read_main_provider()
         main_model = _read_main_model()
         if main_provider and main_provider not in {"auto", ""}:
@@ -4041,11 +4042,11 @@ def resolve_vision_provider_client(
                 # model does not support image input, switch to a model with
                 # image_in capability" and vision lives on the separate Kimi
                 # Platform (api.moonshot.ai). Skip the main provider and fall
-                # through to the aggregator chain instead of returning a
+                # through to the OpenAI API fallback instead of returning a
                 # client that will 404 on every vision request (#17076).
                 logger.debug(
                     "Vision auto-detect: skipping main provider %s (no "
-                    "vision support) — falling through to aggregator chain",
+                    "vision support) - falling through to OpenAI API fallback",
                     main_provider,
                 )
             elif not _main_model_supports_vision(main_provider, vision_model):
@@ -4053,7 +4054,7 @@ def resolve_vision_provider_client(
                 # gpt-oss-120b without vision). Building a client and sending
                 # an image would produce a cryptic provider-side error like
                 # ``unknown variant `image_url`, expected `text``` (#31179).
-                # Fall through to the aggregator chain instead.
+                # Fall through to the OpenAI API fallback instead.
                 #
                 # Only log the provider name (not the model) — mirrors the
                 # sibling _PROVIDERS_WITHOUT_VISION branch above, and avoids
@@ -4061,8 +4062,8 @@ def resolve_vision_provider_client(
                 # positives on multi-value interpolations.
                 logger.debug(
                     "Vision auto-detect: skipping main provider %s "
-                    "(reports no vision capability) — falling through to "
-                    "aggregator chain",
+                    "(reports no vision capability) - falling through to "
+                    "OpenAI API fallback",
                     main_provider,
                 )
             else:
@@ -4078,8 +4079,7 @@ def resolve_vision_provider_client(
                     return _finalize(
                         main_provider, rpc_client, rpc_model or vision_model)
 
-        # Fall back through aggregators (uses their dedicated vision model,
-        # not the user's main model) when main provider has no client.
+        # Fall back to OpenAI API when the main provider has no client.
         for candidate in _VISION_AUTO_PROVIDER_ORDER:
             if candidate == main_provider:
                 continue  # already tried above
@@ -4488,20 +4488,12 @@ def _get_cached_client(
     return client, model or default_model
 
 
-# Aliases that target direct REST APIs not modeled as first-class providers
-# in PROVIDER_REGISTRY. Used for ``auxiliary.<task>.provider`` so users can
-# write the obvious name and have it resolve to a working ``custom`` endpoint
-# without needing to know our internal provider IDs.
-#
-# Why these specifically: PROVIDER_REGISTRY has ``openai-codex`` (OAuth) and
-# ``custom`` (manual base_url + OPENAI_API_KEY) but no plain ``openai`` for
-# direct API-key access. Users predictably type ``provider: openai`` and
-# expect it to use OPENAI_API_KEY against api.openai.com. Previously this
-# silently fell back to the user's main provider, sending OpenAI model names
-# to e.g. DeepSeek and producing cryptic ``unknown variant 'image_url'``
-# errors (issue #31179).
-_AUX_DIRECT_API_BASE_URLS: Dict[str, str] = {
-    "openai": "https://api.openai.com/v1",
+# Aliases for direct OpenAI API access. Keep them as provider aliases instead
+# of rewriting to ``custom`` so the OpenAI-only allowlist still applies.
+_AUX_DIRECT_API_PROVIDER_ALIASES: Dict[str, str] = {
+    "openai": "openai-api",
+    "openai-api": "openai-api",
+    "openai_api": "openai-api",
 }
 
 
@@ -4520,9 +4512,10 @@ def _resolve_task_provider_model(
       3. "auto" (full auto-detection chain)
 
     Returns (provider, model, base_url, api_key, api_mode) where model may
-    be None (use provider default). When base_url is set, provider is forced
-    to "custom" and the task uses that direct endpoint. api_mode is one of
-    "chat_completions", "codex_responses", or None (auto-detect).
+    be None (use provider default). A direct base_url is allowed only for
+    openai-api; every other direct endpoint is returned as "custom" and then
+    rejected by the OpenAI-only router. api_mode is one of "chat_completions",
+    "codex_responses", or None (auto-detect).
     """
     cfg_provider = None
     cfg_model = None
@@ -4541,26 +4534,21 @@ def _resolve_task_provider_model(
     resolved_model = model or cfg_model
     resolved_api_mode = cfg_api_mode
 
-    # Convenience aliases for direct API-key endpoints that aren't first-class
-    # providers (e.g. ``provider: openai`` → custom + api.openai.com/v1).
-    # Applied to both explicit args and config-derived values. When the user
-    # has already supplied a base_url we keep their endpoint but still rewrite
-    # the provider to ``custom`` so resolution doesn't hit the
-    # PROVIDER_REGISTRY-only path (which has no ``openai`` entry).
+    # Convenience aliases for direct OpenAI API access.
     def _expand_direct_api_alias(prov: Optional[str], existing_base: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         if not prov:
             return prov, existing_base
-        target_base = _AUX_DIRECT_API_BASE_URLS.get(prov.strip().lower())
-        if target_base is None:
+        target_provider = _AUX_DIRECT_API_PROVIDER_ALIASES.get(prov.strip().lower())
+        if target_provider is None:
             return prov, existing_base
-        return "custom", existing_base or target_base
+        return target_provider, existing_base
 
     if provider:
         provider, base_url = _expand_direct_api_alias(provider, base_url)
     if cfg_provider:
         cfg_provider, cfg_base_url = _expand_direct_api_alias(cfg_provider, cfg_base_url)
 
-    if base_url:
+    if base_url and _normalize_aux_provider(provider) != "openai-api":
         return "custom", resolved_model, base_url, api_key, resolved_api_mode
     if provider:
         return provider, resolved_model, base_url, api_key, resolved_api_mode
@@ -4568,12 +4556,17 @@ def _resolve_task_provider_model(
     if task:
         # Config.yaml is the primary source for per-task overrides.
         if cfg_base_url and cfg_api_key:
-            # Both base_url and api_key explicitly set → custom endpoint.
+            # Both base_url and api_key explicitly set. OpenAI API remains
+            # first-party; every other direct endpoint is treated as custom
+            # and disabled by the OpenAI-only router.
+            cfg_norm = _normalize_aux_provider(cfg_provider)
+            if cfg_norm == "openai-api":
+                return "openai-api", resolved_model, cfg_base_url, cfg_api_key, resolved_api_mode
             return "custom", resolved_model, cfg_base_url, cfg_api_key, resolved_api_mode
         if cfg_base_url and cfg_provider and cfg_provider != "auto":
             # base_url set without api_key but with a known provider — use
             # the provider so it can resolve credentials from env vars
-            # (e.g. OPENROUTER_API_KEY) instead of locking into "custom".
+            # (e.g. OPENAI_API_KEY) instead of locking into "custom".
             return cfg_provider, resolved_model, cfg_base_url, None, resolved_api_mode
         if cfg_provider and cfg_provider != "auto":
             return cfg_provider, resolved_model, cfg_base_url, cfg_api_key, resolved_api_mode

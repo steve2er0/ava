@@ -15,6 +15,8 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -30,7 +32,7 @@ from hermes_cli.nous_subscription import (
 )
 from hermes_cli.nous_account import format_nous_portal_entitlement_message
 from tools.tool_backend_helpers import fal_key_is_configured
-from utils import base_url_hostname, is_truthy_value
+from utils import is_truthy_value
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +85,8 @@ CONFIGURABLE_TOOLSETS = [
 ]
 
 # Toolsets that are OFF by default for new installs.
-# They're still in _HERMES_CORE_TOOLS (available at runtime if enabled),
-# but the setup checklist won't pre-select them for first-time users.
+# They remain available as opt-in toolsets, but the secure default tool list
+# leaves them out for first-time users.
 #
 # Video gen is off by default — it's a niche, paid, slow feature. Users
 # who want it opt in via `hermes tools` → Video Generation, which walks
@@ -522,9 +524,8 @@ TOOL_CATEGORIES = {
 }
 
 # Simple env-var requirements for toolsets NOT in TOOL_CATEGORIES.
-# Used as a fallback for tools like vision/moa that just need an API key.
+# Used as a fallback for opt-in tools that just need an API key.
 TOOLSET_ENV_REQUIREMENTS = {
-    "vision":     [("OPENROUTER_API_KEY",   "https://openrouter.ai/keys")],
     "moa":        [("OPENROUTER_API_KEY",   "https://openrouter.ai/keys")],
 }
 
@@ -756,18 +757,32 @@ def _run_cua_driver_installer(label: str = "Installing", verbose: bool = True) -
     import shutil
     import subprocess
 
-    install_cmd = (
-        "/bin/bash -c \"$(curl -fsSL "
+    installer_url = (
         "https://raw.githubusercontent.com/trycua/cua/main/"
-        "libs/cua-driver/scripts/install.sh)\""
+        "libs/cua-driver/scripts/install.sh"
     )
+    install_hint = (
+        "AVA_ALLOW_CUA_INSTALL=1 python -m hermes_cli.main tools"
+    )
+    if not is_truthy_value(os.getenv("AVA_ALLOW_CUA_INSTALL") or os.getenv("HERMES_ALLOW_CUA_INSTALL")):
+        _print_warning(
+            "    Skipping cua-driver install; set AVA_ALLOW_CUA_INSTALL=1 "
+            "to allow this opt-in network installer."
+        )
+        _print_info(f"    Re-run from tools setup when ready: {install_hint}")
+        return False
+
     if verbose:
         _print_info(f"    {label} cua-driver (macOS background computer-use)...")
     else:
         _print_info(f"    {label} cua-driver...")
     driver_cmd = _cua_driver_cmd()
+    installer_path = ""
     try:
-        result = subprocess.run(install_cmd, shell=True, timeout=300)
+        with tempfile.NamedTemporaryFile(prefix="ava-cua-driver-", suffix=".sh", delete=False) as fh:
+            installer_path = fh.name
+        urllib.request.urlretrieve(installer_url, installer_path)
+        result = subprocess.run(["/bin/bash", installer_path], timeout=300)
         if result.returncode == 0 and shutil.which(driver_cmd):
             if verbose:
                 _print_success(f"    {driver_cmd} installed.")
@@ -777,7 +792,8 @@ def _run_cua_driver_installer(label: str = "Installing", verbose: bool = True) -
                 _print_info("    Both must allow the terminal / Hermes process.")
             return True
         _print_warning(f"    cua-driver {label.lower()} did not complete. Re-run manually:")
-        _print_info(f"      {install_cmd}")
+        _print_info(f"      curl -fsSL {installer_url} -o /tmp/cua-driver-install.sh")
+        _print_info("      /bin/bash /tmp/cua-driver-install.sh")
         return False
     except subprocess.TimeoutExpired:
         _print_warning(f"    cua-driver {label.lower()} timed out. Re-run manually.")
@@ -785,6 +801,12 @@ def _run_cua_driver_installer(label: str = "Installing", verbose: bool = True) -
     except Exception as e:
         _print_warning(f"    cua-driver {label.lower()} failed: {e}")
         return False
+    finally:
+        if installer_path:
+            try:
+                os.unlink(installer_path)
+            except OSError:
+                pass
 
 
 def _run_post_setup(post_setup_key: str):
@@ -2898,35 +2920,23 @@ def _configure_simple_requirements(ts_key: str):
         if _toolset_has_keys("vision"):
             return
         print()
-        print(color("  Vision / Image Analysis requires a multimodal backend:", Colors.YELLOW))
+        print(color("  Vision / Image Analysis requires OpenAI/Codex auth:", Colors.YELLOW))
         choices = [
-            "OpenRouter — uses Gemini",
-            "OpenAI-compatible endpoint — base URL, API key, and vision model",
+            "OpenAI API - save OPENAI_API_KEY",
             "Skip",
         ]
-        idx = _prompt_choice("  Configure vision backend", choices, 2)
+        idx = _prompt_choice("  Configure vision backend", choices, 1)
         if idx == 0:
-            _print_info("  Get key at: https://openrouter.ai/keys")
-            value = _prompt("    OPENROUTER_API_KEY", password=True)
-            if value and value.strip():
-                save_env_value("OPENROUTER_API_KEY", value.strip())
-                _print_success("    Saved")
-            else:
-                _print_warning("    Skipped")
-        elif idx == 1:
-            base_url = _prompt("    OPENAI_BASE_URL (blank for OpenAI)").strip() or "https://api.openai.com/v1"
-            is_native_openai = base_url_hostname(base_url) == "api.openai.com"
-            key_label = "    OPENAI_API_KEY" if is_native_openai else "    API key"
-            api_key = _prompt(key_label, password=True)
+            _print_info("  Codex OAuth users can run: ava model")
+            api_key = _prompt("    OPENAI_API_KEY", password=True)
             if api_key and api_key.strip():
                 save_env_value("OPENAI_API_KEY", api_key.strip())
-                # Save vision base URL to config (not .env — only secrets go there)
                 _cfg = load_config()
                 _aux = _cfg.setdefault("auxiliary", {}).setdefault("vision", {})
-                _aux["base_url"] = base_url
+                _aux["provider"] = "openai-api"
+                _aux["base_url"] = "https://api.openai.com/v1"
                 save_config(_cfg)
-                if is_native_openai:
-                    save_env_value("AUXILIARY_VISION_MODEL", "gpt-4o-mini")
+                save_env_value("AUXILIARY_VISION_MODEL", "gpt-4o-mini")
                 _print_success("    Saved")
             else:
                 _print_warning("    Skipped")

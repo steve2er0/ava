@@ -112,7 +112,7 @@ def check_compression_model_feasibility(agent: Any) -> None:
                 msg = (
                     "⚠ No auxiliary LLM provider configured — context "
                     "compression will drop middle turns without a summary. "
-                    "Run `hermes setup` or set OPENROUTER_API_KEY."
+                    "Run `ava model` for Codex auth or set OPENAI_API_KEY."
                 )
             agent._compression_warning = msg
             agent._emit_status(msg)
@@ -139,7 +139,7 @@ def check_compression_model_feasibility(agent: Any) -> None:
             api_key=aux_api_key,
             config_context_length=getattr(agent, "_aux_compression_context_length_config", None),
             # Each model must be resolved with its own provider so that
-            # provider-specific paths (e.g. Bedrock static table, OpenRouter API)
+            # provider-specific paths
             # are invoked for the correct client, not inherited from the main model.
             provider=(_aux_cfg_provider if _aux_cfg_provider and _aux_cfg_provider != "auto" else getattr(agent, "provider", "")),
             custom_providers=agent._custom_providers,

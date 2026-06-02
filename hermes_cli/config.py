@@ -1124,37 +1124,30 @@ DEFAULT_CONFIG = {
         },
     },
 
-    # Auxiliary model config — provider:model for each side task.
-    # Format: provider is the provider name, model is the model slug.
-    # "auto" for provider = auto-detect best available provider.
-    # Empty model = use provider's default auxiliary model.
-    # All tasks fall back to openrouter:google/gemini-3-flash-preview if
-    # the configured provider is unavailable.
+    # Auxiliary model config - provider:model for each side task.
+    # AVA auxiliary routing is OpenAI/Codex-only.
+    # provider: auto = main OpenAI/Codex model, with OpenAI API fallback when
+    # OPENAI_API_KEY is configured. provider may also be openai-codex or
+    # openai-api. Empty model = use the provider/default main model.
     #
     # extra_body: forwarded verbatim as request body fields on every aux call
-    # for that task. Use this to set provider-specific knobs (independent of
-    # main-agent settings). On OpenRouter you can set provider routing prefs
-    # and the Pareto Code coding-score floor here. Example:
+    # for that task. Use this for OpenAI request options independent of
+    # main-agent settings. Example:
     #
     #   auxiliary:
     #     compression:
-    #       provider: openrouter
-    #       model: openrouter/pareto-code
+    #       provider: openai-api
+    #       model: gpt-4o-mini
     #       extra_body:
-    #         provider:           # OpenRouter provider routing
-    #           order: [anthropic, google]
-    #           sort: throughput  # or price | latency
-    #         plugins:            # OpenRouter Pareto Code router
-    #           - id: pareto-router
-    #             min_coding_score: 0.5
+    #         reasoning:
+    #           effort: low
     #
-    # Each aux task is independent — main-agent provider_routing and
-    # openrouter.min_coding_score do NOT propagate to aux calls by design.
+    # Each aux task is independent.
     "auxiliary": {
         "vision": {
-            "provider": "auto",    # auto | openrouter | nous | codex | custom
-            "model": "",           # e.g. "google/gemini-2.5-flash", "gpt-4o"
-            "base_url": "",        # direct OpenAI-compatible endpoint (takes precedence over provider)
+            "provider": "auto",    # auto | openai-codex | openai-api
+            "model": "",           # e.g. "gpt-4o", "gpt-4o-mini"
+            "base_url": "",        # optional OpenAI API base URL; non-OpenAI hosts are rejected
             "api_key": "",         # API key for base_url (falls back to OPENAI_API_KEY)
             "timeout": 120,        # seconds — LLM API call timeout; vision payloads need generous timeout
             "extra_body": {},      # OpenAI-compatible provider-specific request fields
@@ -1253,8 +1246,8 @@ DEFAULT_CONFIG = {
         # Curator — skill-usage review fork. Timeout is generous because the
         # review pass can take several minutes on reasoning models (umbrella
         # building over hundreds of candidate skills). "auto" = use main chat
-        # model; override via `hermes model` → auxiliary → Curator to route
-        # to a cheaper aux model (e.g. openrouter google/gemini-3-flash-preview).
+        # model; override via `hermes model` -> auxiliary -> Curator to route
+        # to a cheaper OpenAI API model.
         "curator": {
             "provider": "auto",
             "model": "",
@@ -1550,14 +1543,14 @@ DEFAULT_CONFIG = {
         "provider": "",
     },
 
-    # Subagent delegation — override the provider:model used by delegate_task
-    # so child agents can run on a different (cheaper/faster) provider and model.
-    # Uses the same runtime provider resolution as CLI/gateway startup, so all
-    # configured providers (OpenRouter, Nous, Z.ai, Kimi, etc.) are supported.
+    # Subagent delegation - override the provider:model used by delegate_task
+    # so child agents can run on a different OpenAI/Codex model.
+    # delegate_task is not in the secure default toolset; enable it explicitly
+    # only when you want subagents.
     "delegation": {
-        "model": "",       # e.g. "google/gemini-3-flash-preview" (empty = inherit parent model)
-        "provider": "",    # e.g. "openrouter" (empty = inherit parent provider + credentials)
-        "base_url": "",    # direct OpenAI-compatible endpoint for subagents
+        "model": "",       # e.g. "gpt-4o-mini" (empty = inherit parent model)
+        "provider": "",    # openai-codex | openai-api (empty = inherit parent provider + credentials)
+        "base_url": "",    # optional OpenAI API endpoint for subagents
         "api_key": "",     # API key for delegation.base_url (falls back to OPENAI_API_KEY)
         "api_mode": "",    # wire protocol for delegation.base_url: "chat_completions",
                            # "codex_responses", or "anthropic_messages". Empty = auto-detect
@@ -1850,14 +1843,10 @@ DEFAULT_CONFIG = {
         # <id>`; remove by editing the list directly. See
         # ``hermes_cli/security_advisories.py`` for the catalog.
         "acked_advisories": [],
-        # Allow Hermes to lazy-install opt-in backend packages from PyPI
-        # the first time the user enables a backend that needs them
-        # (e.g. installing ``elevenlabs`` when the user picks ElevenLabs as
-        # their TTS provider). Set to false to require explicit
-        # ``pip install`` for everything beyond the base set — appropriate
-        # for restricted networks, audited environments, or air-gapped
-        # systems where any runtime install is unacceptable.
-        "allow_lazy_installs": True,
+        # Allow AVA to lazy-install opt-in backend packages from PyPI the first
+        # time the user enables a backend that needs them. Disabled by default
+        # so runtime package installation is always an explicit choice.
+        "allow_lazy_installs": False,
     },
 
     "cron": {
@@ -1986,13 +1975,11 @@ DEFAULT_CONFIG = {
         "backup_count": 3,     # Number of rotated backup files to keep
     },
 
-    # Remotely-hosted model catalog manifest.  When enabled, the CLI fetches
-    # curated model lists for OpenRouter and Nous Portal from this URL,
-    # falling back to the in-repo snapshot on network failure.  Lets us
-    # update model picker lists without shipping a hermes-agent release.
-    # The default URL is served by the docs site GitHub Pages deploy.
+    # Remotely-hosted model catalog manifest. Disabled by default so `ava model`
+    # does not make non-LLM network calls. Enable only if you want remote model
+    # picker updates instead of the in-repo snapshot.
     "model_catalog": {
-        "enabled": True,
+        "enabled": False,
         "url": "https://hermes-agent.nousresearch.com/docs/api/model-catalog.json",
         # Disk cache TTL in hours.  Beyond this, the CLI refetches on the
         # next /model or `hermes model` invocation; network failures
@@ -3926,7 +3913,7 @@ def validate_config_structure(config: Optional[Dict[str, Any]] = None) -> List["
                         issues.append(ConfigIssue(
                             "warning",
                             f"fallback_model[{i}] is missing 'provider' field",
-                            "Add: provider: openrouter (or another provider)",
+                            "Add: provider: openai-api",
                         ))
                     if not entry.get("model"):
                         issues.append(ConfigIssue(
@@ -3940,15 +3927,15 @@ def validate_config_structure(config: Optional[Dict[str, Any]] = None) -> List["
                 f"fallback_model should be a dict with 'provider' and 'model', got {type(fb).__name__}",
                 "Change to:\n"
                 "  fallback_model:\n"
-                "    provider: openrouter\n"
-                "    model: anthropic/claude-sonnet-4",
+                "    provider: openai-api\n"
+                "    model: gpt-4o-mini",
             ))
         elif fb:
             if not fb.get("provider"):
                 issues.append(ConfigIssue(
                     "warning",
                     "fallback_model is missing 'provider' field — fallback will be disabled",
-                    "Add: provider: openrouter (or another provider)",
+                    "Add: provider: openai-api",
                 ))
             if not fb.get("model"):
                 issues.append(ConfigIssue(
@@ -5028,21 +5015,12 @@ _FALLBACK_COMMENT = """
 # overload (529), service errors (503), or connection failures.
 #
 # Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
-#
-# For custom OpenAI-compatible endpoints, add base_url and key_env.
+#   openai-codex (OAuth - hermes auth) - OpenAI Codex
+#   openai-api   (OPENAI_API_KEY)      - OpenAI API
 #
 # fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4
+#   provider: openai-api
+#   model: gpt-4o-mini
 """
 
 
@@ -5060,21 +5038,12 @@ _COMMENTED_SECTIONS = """
 # overload (529), service errors (503), or connection failures.
 #
 # Supported providers:
-#   openrouter   (OPENROUTER_API_KEY)  — routes to any model
-#   openai-codex (OAuth — hermes auth) — OpenAI Codex
-#   nous         (OAuth — hermes auth) — Nous Portal
-#   zai          (ZAI_API_KEY)         — Z.AI / GLM
-#   kimi-coding  (KIMI_API_KEY)        — Kimi / Moonshot
-#   kimi-coding-cn (KIMI_CN_API_KEY)   — Kimi / Moonshot (China)
-#   minimax      (MINIMAX_API_KEY)     — MiniMax
-#   minimax-cn   (MINIMAX_CN_API_KEY)  — MiniMax (China)
-#   bedrock      (AWS IAM / boto3)     — AWS Bedrock (Converse API)
-#
-# For custom OpenAI-compatible endpoints, add base_url and key_env.
+#   openai-codex (OAuth - hermes auth) - OpenAI Codex
+#   openai-api   (OPENAI_API_KEY)      - OpenAI API
 #
 # fallback_model:
-#   provider: openrouter
-#   model: anthropic/claude-sonnet-4
+#   provider: openai-api
+#   model: gpt-4o-mini
 """
 
 

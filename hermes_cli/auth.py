@@ -1,9 +1,8 @@
 """
-Multi-provider authentication system for Hermes Agent.
+OpenAI/Codex authentication system for AVA.
 
-Supports OAuth device code flows (Nous Portal, future: OpenAI Codex) and
-traditional API key providers (OpenRouter, custom endpoints). Auth state
-is persisted in ~/.hermes/auth.json with cross-process file locking.
+Supports OpenAI Codex OAuth and OpenAI API keys. Auth state is persisted in
+~/.hermes/auth.json with cross-process file locking.
 
 Architecture:
 - ProviderConfig registry defines known OAuth providers
@@ -1423,8 +1422,8 @@ def clear_provider_auth(provider_id: Optional[str] = None) -> bool:
 def deactivate_provider() -> None:
     """
     Clear active_provider in auth.json without deleting credentials.
-    Used when the user switches to a non-OAuth provider (OpenRouter, custom)
-    so auto-resolution doesn't keep picking the OAuth provider.
+    Used when the user switches away from an OAuth provider so auto-resolution
+    does not keep picking stale OAuth state.
     """
     with _auth_store_lock():
         auth_store = _load_auth_store()
@@ -1472,11 +1471,10 @@ def resolve_provider(
     Determine which inference provider to use.
 
     Priority (when requested="auto" or None):
-    1. active_provider in auth.json with valid credentials
-    2. Explicit CLI api_key/base_url -> "openrouter"
-    3. OPENAI_API_KEY or OPENROUTER_API_KEY env vars -> "openrouter"
-    4. Provider-specific API keys (GLM, Kimi, MiniMax) -> that provider
-    5. Fallback: "openrouter"
+    1. active OpenAI/Codex provider in auth.json with valid credentials
+    2. Explicit CLI api_key/base_url -> "openai-api"
+    3. OPENAI_API_KEY env var -> "openai-api"
+    4. Otherwise raise no_provider_configured
     """
     normalized = (requested or "auto").strip().lower()
 
@@ -1530,119 +1528,6 @@ def resolve_provider(
         code="no_provider_configured",
     )
 
-    # Normalize provider aliases
-    _PROVIDER_ALIASES = {
-        "glm": "zai", "z-ai": "zai", "z.ai": "zai", "zhipu": "zai",
-        "google": "gemini", "google-gemini": "gemini", "google-ai-studio": "gemini",
-        "x-ai": "xai", "x.ai": "xai", "grok": "xai",
-        "xai-oauth": "xai-oauth", "x-ai-oauth": "xai-oauth",
-        "grok-oauth": "xai-oauth", "xai-grok-oauth": "xai-oauth",
-        "kimi": "kimi-coding", "kimi-for-coding": "kimi-coding", "moonshot": "kimi-coding",
-        "kimi-cn": "kimi-coding-cn", "moonshot-cn": "kimi-coding-cn",
-        "step": "stepfun", "stepfun-coding-plan": "stepfun",
-        "arcee-ai": "arcee", "arceeai": "arcee",
-        "gmi-cloud": "gmi", "gmicloud": "gmi",
-        "minimax-china": "minimax-cn", "minimax_cn": "minimax-cn",
-        "minimax-portal": "minimax-oauth", "minimax-global": "minimax-oauth", "minimax_oauth": "minimax-oauth",
-        "alibaba_coding": "alibaba-coding-plan", "alibaba-coding": "alibaba-coding-plan",
-        "alibaba_coding_plan": "alibaba-coding-plan",
-        "claude": "anthropic", "claude-code": "anthropic",
-        "github": "copilot", "github-copilot": "copilot",
-        "github-models": "copilot", "github-model": "copilot",
-        "github-copilot-acp": "copilot-acp", "copilot-acp-agent": "copilot-acp",
-        "opencode": "opencode-zen", "zen": "opencode-zen",
-        "qwen-portal": "qwen-oauth", "qwen-cli": "qwen-oauth", "qwen-oauth": "qwen-oauth", "google-gemini-cli": "google-gemini-cli", "gemini-cli": "google-gemini-cli", "gemini-oauth": "google-gemini-cli",
-        "hf": "huggingface", "hugging-face": "huggingface", "huggingface-hub": "huggingface",
-        "mimo": "xiaomi", "xiaomi-mimo": "xiaomi",
-        "tencent": "tencent-tokenhub", "tokenhub": "tencent-tokenhub",
-        "tencent-cloud": "tencent-tokenhub", "tencentmaas": "tencent-tokenhub",
-        "aws": "bedrock", "aws-bedrock": "bedrock", "amazon-bedrock": "bedrock", "amazon": "bedrock",
-        "go": "opencode-go", "opencode-go-sub": "opencode-go",
-        "kilo": "kilocode", "kilo-code": "kilocode", "kilo-gateway": "kilocode",
-        "lmstudio": "lmstudio", "lm-studio": "lmstudio", "lm_studio": "lmstudio",
-        # Local server aliases — route through the generic custom provider
-        "ollama": "custom", "ollama_cloud": "ollama-cloud",
-        "vllm": "custom", "llamacpp": "custom",
-        "llama.cpp": "custom", "llama-cpp": "custom",
-    }
-    # Extend with aliases declared in plugins/model-providers/<name>/ that aren't already mapped.
-    # This keeps providers/ as the single source for new aliases while the
-    # hardcoded dict above remains authoritative for existing ones.
-    try:
-        from providers import list_providers as _lp
-        for _pp in _lp():
-            for _alias in _pp.aliases:
-                if _alias not in _PROVIDER_ALIASES:
-                    _PROVIDER_ALIASES[_alias] = _pp.name
-    except Exception:
-        pass
-    normalized = _PROVIDER_ALIASES.get(normalized, normalized)
-
-    if normalized == "openrouter":
-        return "openrouter"
-    if normalized == "custom":
-        return "custom"
-    if normalized in PROVIDER_REGISTRY:
-        return normalized
-    if normalized != "auto":
-        # Check for common config.yaml issues that cause this error
-        _config_hint = _get_config_hint_for_unknown_provider(normalized)
-        msg = f"Unknown provider '{normalized}'."
-        if _config_hint:
-            msg += f"\n\n{_config_hint}"
-        else:
-            msg += " Check 'hermes model' for available providers, or run 'hermes doctor' to diagnose config issues."
-        raise AuthError(msg, code="invalid_provider")
-
-    # Explicit one-off CLI creds always mean openrouter/custom
-    if explicit_api_key or explicit_base_url:
-        return "openrouter"
-
-    # Check auth store for an active OAuth provider
-    try:
-        auth_store = _load_auth_store()
-        active = auth_store.get("active_provider")
-        if active and active in PROVIDER_REGISTRY:
-            status = get_auth_status(active)
-            if status.get("logged_in"):
-                return active
-    except Exception as e:
-        logger.debug("Could not detect active auth provider: %s", e)
-
-    if has_usable_secret(os.getenv("OPENAI_API_KEY")) or has_usable_secret(os.getenv("OPENROUTER_API_KEY")):
-        return "openrouter"
-
-    # Auto-detect API-key providers by checking their env vars
-    for pid, pconfig in PROVIDER_REGISTRY.items():
-        if pconfig.auth_type != "api_key":
-            continue
-        # GitHub tokens are commonly present for repo/tool access but should not
-        # hijack inference auto-selection unless the user explicitly chooses
-        # Copilot/GitHub Models as the provider. LM Studio is a local server
-        # whose availability isn't implied by LM_API_KEY presence (it may be
-        # offline, and the no-auth setup uses a placeholder value), so it
-        # also requires explicit selection.
-        if pid in {"copilot", "lmstudio"}:
-            continue
-        for env_var in pconfig.api_key_env_vars:
-            if has_usable_secret(os.getenv(env_var, "")):
-                return pid
-
-    # AWS Bedrock — detect via boto3 credential chain (IAM roles, SSO, env vars).
-    # This runs after API-key providers so explicit keys always win.
-    try:
-        from agent.bedrock_adapter import has_aws_credentials
-        if has_aws_credentials():
-            return "bedrock"
-    except ImportError:
-        pass  # boto3 not installed — skip Bedrock auto-detection
-
-    raise AuthError(
-        "No inference provider configured. Run 'hermes model' to choose a "
-        "provider and model, or set an API key (OPENROUTER_API_KEY, "
-        "OPENAI_API_KEY, etc.) in ~/.hermes/.env.",
-        code="no_provider_configured",
-    )
 
 
 # =============================================================================
@@ -7710,10 +7595,8 @@ def logout_command(args) -> None:
         if should_reset_config:
             _reset_config_provider()
         print(f"Logged out of {provider_name}.")
-        if should_reset_config and os.getenv("OPENROUTER_API_KEY"):
-            print("Hermes will use OpenRouter for inference.")
-        elif should_reset_config:
-            print("Run `hermes model` or configure an API key to use Hermes.")
+        if should_reset_config:
+            print("Run `ava model` or configure OPENAI_API_KEY to use AVA.")
         else:
             print("Model provider configuration was unchanged.")
     else:

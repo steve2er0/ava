@@ -18,7 +18,7 @@ Backend compatibility:
 - Tavily: https://tavily.com (search, extract)
 
 LLM Processing:
-- Uses OpenRouter API with Gemini 3 Flash Preview for intelligent content extraction
+- Uses the configured OpenAI/Codex auxiliary model for intelligent content extraction
 - Extracts key excerpts and creates markdown summaries to reduce token usage
 
 Debug Mode:
@@ -327,8 +327,8 @@ async def process_content_with_llm(
     """
     Process web content using LLM to create intelligent summaries with key excerpts.
     
-    This function uses Gemini 3 Flash Preview (or specified model) via OpenRouter API 
-    to intelligently extract key information and create markdown summaries,
+    This function uses the configured OpenAI/Codex auxiliary model to
+    intelligently extract key information and create markdown summaries,
     significantly reducing token usage while preserving all important information.
     
     For very large content (>500k chars), uses chunked processing with synthesis.
@@ -338,7 +338,7 @@ async def process_content_with_llm(
         content (str): The raw content to process
         url (str): The source URL (for context, optional)
         title (str): The page title (for context, optional)
-        model (str): The model to use for processing (default: google/gemini-3-flash-preview)
+        model (str): The model to use for processing (default: configured auxiliary model)
         min_length (int): Minimum content length to trigger processing (default: 5000)
         
     Returns:
@@ -1218,7 +1218,7 @@ if __name__ == "__main__":
 
     if not nous_available:
         print("❌ No auxiliary model available for LLM content processing")
-        print("Set OPENROUTER_API_KEY, configure Nous Portal, or set OPENAI_BASE_URL + OPENAI_API_KEY")
+        print("Run `ava model` for Codex auth, or set OPENAI_API_KEY for OpenAI API")
         print("⚠️  Without an auxiliary model, LLM content processing will be disabled")
     else:
         print(f"✅ Auxiliary model available: {default_summarizer_model}")
@@ -1259,7 +1259,7 @@ if __name__ == "__main__":
         print("  # Customize processing parameters")
         print("  content = await web_extract_tool(")
         print("      ['https://docs.python.org'],")
-        print("      model='google/gemini-3-flash-preview',")
+        print("      model='gpt-4o-mini',")
         print("      min_length=3000")
         print("  )")
         print("")

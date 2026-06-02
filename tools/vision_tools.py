@@ -3,8 +3,7 @@
 Vision Tools Module
 
 This module provides vision analysis tools that work with image URLs.
-Uses the centralized auxiliary vision router, which can select OpenRouter,
-Nous, Codex, native Anthropic, or a custom OpenAI-compatible endpoint.
+Uses the centralized OpenAI/Codex auxiliary vision router.
 
 Available tools:
 - vision_analyze_tool: Analyze images from URLs with custom prompts
@@ -723,7 +722,7 @@ async def vision_analyze_tool(
     
     This tool accepts either an HTTP/HTTPS URL or a local file path. For URLs,
     it downloads the image first. In both cases, the image is converted to base64
-    and processed using Gemini 3 Flash Preview via OpenRouter API.
+    and processed using the configured OpenAI/Codex vision model.
     
     The user_prompt parameter is expected to be pre-formatted by the calling
     function (typically model_tools.py) to include both full description
@@ -733,7 +732,7 @@ async def vision_analyze_tool(
         image_url (str): The URL or local file path of the image to analyze.
                          Accepts http://, https:// URLs or absolute/relative file paths.
         user_prompt (str): The pre-formatted prompt for the vision model
-        model (str): The vision model to use (default: google/gemini-3-flash-preview)
+        model (str): The vision model to use (default: configured auxiliary model)
     
     Returns:
         str: JSON string containing the analysis results with the following structure:
@@ -1035,7 +1034,7 @@ if __name__ == "__main__":
     
     if not api_available:
         print("❌ No auxiliary vision model available")
-        print("Configure a supported multimodal backend (OpenRouter, Nous, Codex, Anthropic, or a custom OpenAI-compatible endpoint).")
+        print("Run `ava model` for Codex auth, or set OPENAI_API_KEY for OpenAI API.")
         sys.exit(1)
     else:
         print("✅ Vision model available")

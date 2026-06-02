@@ -763,7 +763,7 @@ def get_honcho_client(config: HonchoClientConfig | None = None) -> Honcho:
         )
 
     # Lazy-install the honcho SDK on demand. ensure() honors
-    # security.allow_lazy_installs (default true). On failure we surface
+    # security.allow_lazy_installs (default false). On failure we surface
     # the original ImportError-shape message so existing callers still get
     # the "go run hermes honcho setup" hint they used to.
     try:

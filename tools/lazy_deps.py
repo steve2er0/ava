@@ -17,10 +17,10 @@ two problems:
 
 The lazy-install pattern fixes both. Backends call :func:`ensure` at the
 top of their first-import path. If the deps are missing, ``ensure`` checks
-the ``security.allow_lazy_installs`` config flag (default true) and runs
-a venv-scoped pip install. If the user has explicitly disabled lazy
-installs, ``ensure`` raises :class:`FeatureUnavailable` with a clear
-remediation hint pointing at ``hermes tools`` or the manual pip command.
+the ``security.allow_lazy_installs`` config flag (default false) and runs
+a venv-scoped pip install only when the user explicitly allows it. Otherwise,
+``ensure`` raises :class:`FeatureUnavailable` with a clear remediation hint
+pointing at ``hermes tools`` or the manual pip command.
 
 Security model:
 
@@ -32,10 +32,10 @@ Security model:
 * **Allowlist.** Only specs that appear in :data:`LAZY_DEPS` can be
   installed via this path. A typo in feature name doesn't get the user
   install-anything semantics.
-* **Opt-out.** Setting ``security.allow_lazy_installs: false`` in
-  ``config.yaml`` disables runtime installs. Users in restricted networks
-  or strict security postures can pin themselves to whatever was installed
-  at setup time.
+* **Opt-in.** Setting ``security.allow_lazy_installs: true`` in
+  ``config.yaml`` enables runtime installs. Users in restricted networks
+  or strict security postures stay pinned to whatever was installed at
+  setup time by default.
 * **Offline detection.** If the install fails (offline, mirror down,
   PyPI 404 / quarantine), we surface the failure as
   :class:`FeatureUnavailable` with the actual pip stderr — no silent
@@ -214,9 +214,8 @@ class _InstallResult:
 def _allow_lazy_installs() -> bool:
     """Return the ``security.allow_lazy_installs`` config flag.
 
-    Defaults to True. If config is unreadable we fail open (allow), because
-    refusing to install would lock people out of their own backends; the
-    decision to block is an explicit user opt-in.
+    Defaults to False. If config is unreadable we fail closed, because
+    runtime package installation must be an explicit user choice.
     """
     if os.environ.get("HERMES_DISABLE_LAZY_INSTALLS") == "1":
         return False
@@ -224,9 +223,9 @@ def _allow_lazy_installs() -> bool:
         from hermes_cli.config import load_config
         cfg = load_config()
     except Exception:
-        return True
+        return False
     sec = cfg.get("security") or {}
-    val = sec.get("allow_lazy_installs", True)
+    val = sec.get("allow_lazy_installs", False)
     return bool(val)
 
 

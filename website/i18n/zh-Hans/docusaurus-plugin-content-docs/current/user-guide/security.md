@@ -639,7 +639,7 @@ hermes doctor --ack <advisory-id>
 工作原理：
 
 1. 后端模块在其首次导入路径的顶部调用 `ensure("feature.name")`。
-2. 若依赖缺失，`ensure` 检查 `config.yaml` 中的 `security.allow_lazy_installs`（默认 `true`），并为允许列表中的规格运行 venv 作用域的 `pip install`。
+2. 若依赖缺失，`ensure` 检查 `config.yaml` 中的 `security.allow_lazy_installs`（默认 `false`），并且只有在显式启用时才会为允许列表中的规格运行 venv 作用域的 `pip install`。
 3. 若安装失败或用户已禁用懒加载安装，调用会抛出 `FeatureUnavailable`，附带实际的 pip stderr 和指向 `hermes tools` 的提示。
 
 `tools/lazy_deps.py` 强制执行的安全保证：
@@ -649,7 +649,7 @@ hermes doctor --ack <advisory-id>
 | 仅限 venv 作用域 | 安装目标为活跃 venv 中的 `sys.executable`——绝不安装到系统 Python |
 | 仅按名称从 PyPI 安装 | 规格接受 `"package>=1.0,<2"` 语法。不允许 `--index-url`、`git+https://` 或 `file:` 路径——恶意的 `config.yaml` 无法重定向安装 |
 | 允许列表 | 只有出现在内置 `LAZY_DEPS` 映射中的规格才能通过此路径安装。功能名称中的拼写错误**不会**获得任意安装语义 |
-| 可选退出 | 设置 `security.allow_lazy_installs: false` 可完全禁用运行时安装。适用于受限网络或严格安全态势 |
+| 可选启用 | 设置 `security.allow_lazy_installs: true` 可启用运行时安装。受限网络或严格安全态势下应保持禁用 |
 | 无静默重试 | 失败以 `FeatureUnavailable` 形式呈现——不缓存错误状态，不发生重试风暴 |
 
 禁用运行时安装：
@@ -657,7 +657,7 @@ hermes doctor --ack <advisory-id>
 ```yaml
 # ~/.hermes/config.yaml
 security:
-  allow_lazy_installs: false
+  allow_lazy_installs: true
 ```
 
 禁用后，需要可选依赖的后端会提示用户手动运行安装（`pip install …`）或通过 `hermes tools` 选择其他后端。
