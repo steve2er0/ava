@@ -389,6 +389,44 @@ TRANSPORT_TO_API_MODE: Dict[str, str] = {
     "bedrock_converse": "bedrock_converse",
 }
 
+CODEX_ONLY_PROVIDER_IDS = frozenset({"openai-codex", "openai-api"})
+
+# AVA inference is intentionally scoped to OpenAI/Codex. Keep the legacy
+# dictionaries above available for archaeology while clamping the runtime source
+# of truth to the two supported OpenAI paths.
+HERMES_OVERLAYS = {
+    "openai-codex": HermesOverlay(
+        transport="codex_responses",
+        auth_type="oauth_external",
+        base_url_override="https://chatgpt.com/backend-api/codex",
+    ),
+    "openai-api": HermesOverlay(
+        transport="codex_responses",
+        extra_env_vars=("OPENAI_API_KEY",),
+        base_url_override="https://api.openai.com/v1",
+        base_url_env_var="OPENAI_BASE_URL",
+    ),
+}
+
+ALIASES = {
+    "codex": "openai-codex",
+    "openai-codex": "openai-codex",
+    "openai_codex": "openai-codex",
+    "chatgpt-codex": "openai-codex",
+    "openai": "openai-api",
+    "openai-api": "openai-api",
+    "openai_api": "openai-api",
+}
+
+_LABEL_OVERRIDES = {
+    "openai-codex": "OpenAI Codex",
+    "openai-api": "OpenAI API",
+}
+
+TRANSPORT_TO_API_MODE = {
+    "codex_responses": "codex_responses",
+}
+
 
 # -- Helper functions ---------------------------------------------------------
 
@@ -497,86 +535,17 @@ def is_aggregator(provider: str) -> bool:
 
 
 def determine_api_mode(provider: str, base_url: str = "") -> str:
-    """Determine the API mode (wire protocol) for a provider/endpoint.
-
-    Resolution order:
-      1. Known provider → transport → TRANSPORT_TO_API_MODE.
-      2. URL heuristics for unknown / custom providers.
-      3. Default: 'chat_completions'.
-    """
-    pdef = get_provider(provider)
-    if pdef is not None:
-        # Even for known providers, check URL heuristics for special endpoints
-        # (e.g. kimi /coding endpoint needs anthropic_messages even on 'custom')
-        if base_url:
-            url_lower = base_url.rstrip("/").lower()
-            if "api.kimi.com/coding" in url_lower:
-                return "anthropic_messages"
-            if url_lower.endswith("/anthropic") or "api.anthropic.com" in url_lower:
-                return "anthropic_messages"
-            if "api.openai.com" in url_lower:
-                return "codex_responses"
-        return TRANSPORT_TO_API_MODE.get(pdef.transport, "chat_completions")
-
-    # Direct provider checks for providers not in HERMES_OVERLAYS
-    if provider == "bedrock":
-        return "bedrock_converse"
-
-    # URL-based heuristics for custom / unknown providers
-    if base_url:
-        url_lower = base_url.rstrip("/").lower()
-        hostname = base_url_hostname(base_url)
-        if url_lower.endswith("/anthropic") or hostname == "api.anthropic.com":
-            return "anthropic_messages"
-        if hostname == "api.kimi.com" and "/coding" in url_lower:
-            return "anthropic_messages"
-        if hostname == "api.openai.com":
-            return "codex_responses"
-        if hostname.startswith("bedrock-runtime.") and base_url_host_matches(base_url, "amazonaws.com"):
-            return "bedrock_converse"
-
-    return "chat_completions"
+    """Determine the API mode for AVA's OpenAI/Codex-only inference stack."""
+    del provider, base_url
+    return "codex_responses"
 
 
 # -- Provider from user config ------------------------------------------------
 
 def resolve_user_provider(name: str, user_config: Dict[str, Any]) -> Optional[ProviderDef]:
-    """Resolve a provider from the user's config.yaml ``providers:`` section.
-
-    Args:
-        name: Provider name as given by the user.
-        user_config: The ``providers:`` dict from config.yaml.
-
-    Returns:
-        ProviderDef if found, else None.
-    """
-    if not user_config or not isinstance(user_config, dict):
-        return None
-
-    entry = user_config.get(name)
-    if not isinstance(entry, dict):
-        return None
-
-    # Extract fields
-    display_name = entry.get("name", "") or name
-    api_url = entry.get("api", "") or entry.get("url", "") or entry.get("base_url", "") or ""
-    key_env = entry.get("key_env", "") or ""
-    transport = entry.get("transport", "openai_chat") or "openai_chat"
-
-    env_vars: List[str] = []
-    if key_env:
-        env_vars.append(key_env)
-
-    return ProviderDef(
-        id=name,
-        name=display_name,
-        transport=transport,
-        api_key_env_vars=tuple(env_vars),
-        base_url=api_url,
-        is_aggregator=False,
-        auth_type="api_key",
-        source="user-config",
-    )
+    """User-defined inference providers are disabled in AVA."""
+    del name, user_config
+    return None
 
 
 def custom_provider_slug(display_name: str) -> str:
@@ -593,68 +562,8 @@ def resolve_custom_provider(
     name: str,
     custom_providers: Optional[List[Dict[str, Any]]],
 ) -> Optional[ProviderDef]:
-    """Resolve a provider from the user's config.yaml ``custom_providers`` list."""
-    if not custom_providers or not isinstance(custom_providers, list):
-        return None
-
-    requested = (name or "").strip().lower()
-    if not requested:
-        return None
-
-    # If the stored provider is the bare string "custom" (corrupt state
-    # from a prior model-switch bug), fall back to the first custom
-    # provider entry so existing configs self-heal.  (GH #17478)
-    bare_custom_fallback = requested == "custom"
-    first_valid = None
-
-    for entry in custom_providers:
-        if not isinstance(entry, dict):
-            continue
-
-        display_name = (entry.get("name") or "").strip()
-        api_url = (
-            entry.get("base_url", "")
-            or entry.get("url", "")
-            or entry.get("api", "")
-            or ""
-        ).strip()
-        if not display_name or not api_url:
-            continue
-
-        # Stash the first valid entry for bare-"custom" fallback
-        if first_valid is None:
-            first_valid = (display_name, api_url)
-
-        slug = custom_provider_slug(display_name)
-        if requested not in {display_name.lower(), slug}:
-            continue
-
-        return ProviderDef(
-            id=slug,
-            name=display_name,
-            transport="openai_chat",
-            api_key_env_vars=(),
-            base_url=api_url,
-            is_aggregator=False,
-            auth_type="api_key",
-            source="user-config",
-        )
-
-    # Self-heal: bare "custom" matched nothing — return first valid entry
-    if bare_custom_fallback and first_valid:
-        dname, aurl = first_valid
-        slug = custom_provider_slug(dname)
-        return ProviderDef(
-            id=slug,
-            name=dname,
-            transport="openai_chat",
-            api_key_env_vars=(),
-            base_url=aurl,
-            is_aggregator=False,
-            auth_type="api_key",
-            source="user-config",
-        )
-
+    """Saved custom inference providers are disabled in AVA."""
+    del name, custom_providers
     return None
 
 
@@ -677,6 +586,9 @@ def resolve_provider_full(
     """
     canonical = normalize_provider(name)
     raw = name.strip().lower()
+
+    if canonical not in CODEX_ONLY_PROVIDER_IDS:
+        return None
 
     # 0. User-defined config providers win over the built-in alias table.
     #    A user who declares ``providers.<name>`` in config.yaml has stated

@@ -183,11 +183,10 @@ def print_noninteractive_setup_guidance(reason: str | None = None) -> None:
     print_info("The interactive wizard cannot be used here.")
     print()
     print_info("Configure Hermes using environment variables or config commands:")
-    print_info("  hermes config set model.provider custom")
-    print_info("  hermes config set model.base_url http://localhost:8080/v1")
-    print_info("  hermes config set model.default your-model-name")
+    print_info("  hermes config set model.provider openai-api")
+    print_info("  hermes config set model.default gpt-5.3-codex")
     print()
-    print_info("Or set OPENROUTER_API_KEY / OPENAI_API_KEY in your environment.")
+    print_info("Or set OPENAI_API_KEY in your environment.")
     print_info("Run 'hermes setup' in an interactive terminal to use the full wizard.")
     print()
 
@@ -2317,12 +2316,10 @@ def _model_section_has_credentials(config: dict) -> bool:
     """Return True when any known inference provider has usable credentials.
 
     Sources of truth:
-      * ``PROVIDER_REGISTRY`` in ``hermes_cli.auth`` — lists every supported
-        provider along with its ``api_key_env_vars``.
-      * ``active_provider`` in the auth store — covers OAuth device-code /
-        external-OAuth providers (Nous, Codex, Qwen, Gemini CLI, ...).
-      * The legacy OpenRouter aggregator env vars, which route generic
-        ``OPENAI_API_KEY`` / ``OPENROUTER_API_KEY`` values through OpenRouter.
+      * ``PROVIDER_REGISTRY`` in ``hermes_cli.auth`` — OpenAI Codex and
+        OpenAI API.
+      * ``active_provider`` in the auth store for Codex OAuth.
+      * ``OPENAI_API_KEY`` for the direct OpenAI API provider.
     """
     try:
         from hermes_cli.auth import get_active_provider
@@ -2355,21 +2352,11 @@ def _model_section_has_credentials(config: dict) -> bool:
         if provider_id in PROVIDER_REGISTRY:
             if _has_key(PROVIDER_REGISTRY[provider_id]):
                 return True
-        if provider_id == "openrouter":
-            for env_var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY"):
-                if get_env_value(env_var):
-                    return True
 
-    # OpenRouter aggregator fallback (no provider declared in config).
-    for env_var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY"):
-        if get_env_value(env_var):
-            return True
+    if get_env_value("OPENAI_API_KEY"):
+        return True
 
     for pid, pconfig in PROVIDER_REGISTRY.items():
-        # Skip copilot in auto-detect: GH_TOKEN / GITHUB_TOKEN are
-        # commonly set for git tooling.  Mirrors resolve_provider in auth.py.
-        if pid == "copilot":
-            continue
         if _has_key(pconfig):
             return True
     return False
@@ -2926,8 +2913,7 @@ def run_setup_wizard(args):
 
     active_provider = get_active_provider()
     is_existing = (
-        bool(get_env_value("OPENROUTER_API_KEY"))
-        or bool(get_env_value("OPENAI_BASE_URL"))
+        bool(get_env_value("OPENAI_API_KEY"))
         or active_provider is not None
     )
 
@@ -3007,8 +2993,8 @@ def run_setup_wizard(args):
         setup_mode = prompt_choice(
             "How would you like to set up Hermes?",
             [
-                "Quick Setup (Nous Portal) — free OAuth login, no API keys, model + tools (recommended)",
-                "Full setup — configure every provider, tool & option yourself (bring your own keys)",
+                "Quick Setup (OpenAI Codex) — OAuth login and model selection (recommended)",
+                "Full setup — configure model, tools, gateway, and options yourself",
             ],
             0,
         )
@@ -3064,35 +3050,23 @@ def run_setup_wizard(args):
 
 
 def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
-    """Streamlined first-time setup via Nous Portal: OAuth, model, terminal & messaging.
-
-    Routes straight to the Nous Portal provider — runs the device-code OAuth
-    login, picks a Nous model, then configures the terminal backend and (optionally)
-    a messaging platform. Applies sensible defaults for everything else (agent
-    settings, tools); the user can customize later via ``hermes setup <section>``
-    or switch providers with ``hermes model``.
-    """
+    """Streamlined first-time setup via OpenAI Codex."""
     from hermes_cli.config import load_config
 
-    # Step 1: Nous Portal — OAuth login + model selection.
-    # _model_flow_nous() handles both the logged-out path (device-code OAuth,
-    # which selects a model internally) and the already-logged-in path (curated
-    # Nous model picker). Provider is set to "nous" by the login/model save.
+    # Step 1: OpenAI Codex OAuth login + model selection.
     print()
-    print_header("Nous Portal")
-    print_info("One subscription, 300+ models, plus the Tool Gateway:")
-    print_info("  web search, image generation, TTS, browser automation.")
-    print_info("Sign up: https://portal.nousresearch.com/manage-subscription")
+    print_header("OpenAI Codex")
+    print_info("Authenticate with OpenAI Codex and choose the default model.")
     print()
     try:
-        from hermes_cli.main import _model_flow_nous
-        _model_flow_nous(config)
+        from hermes_cli.main import _model_flow_openai_codex
+        _model_flow_openai_codex(config)
     except (KeyboardInterrupt, EOFError):
         print()
-        print_info("Nous Portal setup cancelled.")
+        print_info("OpenAI Codex setup cancelled.")
     except Exception as exc:
-        logger.debug("_model_flow_nous error during quick setup: %s", exc)
-        print_warning(f"Nous Portal setup encountered an error: {exc}")
+        logger.debug("_model_flow_openai_codex error during quick setup: %s", exc)
+        print_warning(f"OpenAI Codex setup encountered an error: {exc}")
         print_info("You can try again later with: hermes model")
 
     # Re-sync the wizard's config dict from disk — _model_flow_nous (and the

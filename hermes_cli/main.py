@@ -578,35 +578,15 @@ def _has_any_provider_configured() -> bool:
     from hermes_cli.config import get_env_path, get_hermes_home, load_config
     from hermes_cli.auth import get_auth_status
 
-    # Determine whether Hermes itself has been explicitly configured (model
-    # in config that isn't the hardcoded default). Used below to gate external
-    # tool credentials (Claude Code, Codex CLI) that shouldn't silently skip
-    # the setup wizard on a fresh install.
-    from hermes_cli.config import DEFAULT_CONFIG
-
-    _DEFAULT_MODEL = DEFAULT_CONFIG.get("model", "")
     cfg = load_config()
     model_cfg = cfg.get("model")
-    if isinstance(model_cfg, dict):
-        _model_name = (model_cfg.get("default") or "").strip()
-    elif isinstance(model_cfg, str):
-        _model_name = model_cfg.strip()
-    else:
-        _model_name = ""
-    _has_hermes_config = _model_name and _model_name != _DEFAULT_MODEL
 
-    # Check env vars (may be set by .env or shell).
-    # OPENAI_BASE_URL alone counts — local models (vLLM, llama.cpp, etc.)
-    # often don't require an API key.
+    # Check OpenAI env vars (may be set by .env or shell).
     from hermes_cli.auth import PROVIDER_REGISTRY
 
     # Collect all provider env vars
     provider_env_vars = {
-        "OPENROUTER_API_KEY",
         "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_TOKEN",
-        "OPENAI_BASE_URL",
     }
     for pconfig in PROVIDER_REGISTRY.values():
         if pconfig.auth_type == "api_key":
@@ -661,28 +641,9 @@ def _has_any_provider_configured() -> bool:
     # config rather than .env.
     if isinstance(model_cfg, dict):
         cfg_provider = (model_cfg.get("provider") or "").strip()
-        cfg_base_url = (model_cfg.get("base_url") or "").strip()
         cfg_api_key = (model_cfg.get("api_key") or "").strip()
-        if cfg_provider or cfg_base_url or cfg_api_key:
+        if cfg_provider in {"openai-codex", "openai-api"} or cfg_api_key:
             return True
-
-    # Check for Claude Code OAuth credentials (~/.claude/.credentials.json)
-    # Only count these if Hermes has been explicitly configured — Claude Code
-    # being installed doesn't mean the user wants Hermes to use their tokens.
-    if _has_hermes_config:
-        try:
-            from agent.anthropic_adapter import (
-                read_claude_code_credentials,
-                is_claude_code_token_valid,
-            )
-
-            creds = read_claude_code_credentials()
-            if creds and (
-                is_claude_code_token_valid(creds) or creds.get("refreshToken")
-            ):
-                return True
-        except Exception:
-            pass
 
     return False
 
@@ -2227,7 +2188,6 @@ def select_provider_and_model(args=None):
         format_auth_error,
     )
     from hermes_cli.config import (
-        get_compatible_custom_providers,
         load_config,
         get_env_value,
     )
@@ -2249,7 +2209,7 @@ def select_provider_and_model(args=None):
     effective_provider = (
         config_provider or os.getenv("HERMES_INFERENCE_PROVIDER") or "auto"
     )
-    compatible_custom_providers = get_compatible_custom_providers(config)
+    compatible_custom_providers = []
     def _named_custom_provider_map(cfg) -> dict[str, dict[str, str]]:
         from hermes_cli.config import read_raw_config
 
@@ -2378,10 +2338,9 @@ def select_provider_and_model(args=None):
     def _norm_base_url(url: str) -> str:
         return str(url or "").strip().rstrip("/").lower()
 
-    # Add user-defined custom providers from config.yaml
-    _custom_provider_map = _named_custom_provider_map(
-        config
-    )  # key → {name, base_url, api_key}
+    # User-defined inference endpoints are disabled in AVA's OpenAI/Codex-only
+    # provider flow.
+    _custom_provider_map = {}
 
     def _active_custom_key_from_base_url() -> str:
         if effective_provider != "custom" or not isinstance(model_cfg, dict):
@@ -2482,25 +2441,6 @@ def select_provider_and_model(args=None):
         else:
             ordered.append((key, label, members))
 
-    for key, provider_info in _custom_provider_map.items():
-        name = provider_info["name"]
-        base_url = provider_info["base_url"]
-        short_url = base_url.replace("https://", "").replace("http://", "").rstrip("/")
-        saved_model = provider_info.get("model", "")
-        model_hint = f" — {saved_model}" if saved_model else ""
-        label = f"{name} ({short_url}){model_hint}"
-        if active and key == active:
-            ordered.append((key, f"{label}  ← currently active", []))
-            default_idx = len(ordered) - 1
-        else:
-            ordered.append((key, label, []))
-
-    ordered.append(("custom", "Custom endpoint (enter URL manually)", []))
-    _has_saved_custom_list = isinstance(config.get("custom_providers"), list) and bool(
-        config.get("custom_providers")
-    )
-    if _has_saved_custom_list:
-        ordered.append(("remove-custom", "Remove a saved custom provider", []))
     ordered.append(("aux-config", "Configure auxiliary models...", []))
     ordered.append(("cancel", "Leave unchanged", []))
 
@@ -12359,9 +12299,9 @@ def main():
     )
     login_parser.add_argument(
         "--provider",
-        choices=["nous", "openai-codex", "xai-oauth"],
-        default=None,
-        help="Provider to authenticate with (default: nous)",
+        choices=["openai-codex"],
+        default="openai-codex",
+        help="Provider to authenticate with (default: openai-codex)",
     )
     login_parser.add_argument(
         "--portal-url", help="Portal base URL (default: production portal)"
@@ -12405,7 +12345,7 @@ def main():
     )
     logout_parser.add_argument(
         "--provider",
-        choices=["nous", "openai-codex", "xai-oauth", "spotify"],
+        choices=["openai-codex", "spotify"],
         default=None,
         help="Provider to log out from (default: active provider)",
     )
@@ -12419,7 +12359,7 @@ def main():
     auth_add = auth_subparsers.add_parser("add", help="Add a pooled credential")
     auth_add.add_argument(
         "provider",
-        help="Provider id (for example: anthropic, openai-codex, openrouter)",
+        help="Provider id (openai-codex or openai-api)",
     )
     auth_add.add_argument(
         "--type",

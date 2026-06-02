@@ -1,31 +1,22 @@
 """Provider module registry.
 
-Provider profiles can live in two places:
-
-1. Bundled plugins: ``plugins/model-providers/<name>/`` (shipped with hermes-agent)
-2. User plugins: ``$HERMES_HOME/plugins/model-providers/<name>/``
+AVA is intentionally OpenAI/Codex-only for inference. The provider registry
+therefore loads only the bundled ``openai-codex`` profile and ignores user or
+legacy model-provider plugins.
 
 Each plugin directory contains:
   - ``__init__.py`` — calls ``register_provider(profile)`` at import
   - ``plugin.yaml`` — manifest (name, kind: model-provider, version, description)
 
 Discovery is lazy: the first call to ``get_provider_profile()`` or
-``list_providers()`` scans both locations and imports every plugin. User
-plugins override bundled plugins on name collision (last-writer-wins), so
-third parties can monkey-patch or replace any built-in profile without
-editing the repo.
-
-For backward compatibility, ``providers/*.py`` files (other than ``base.py``
-and ``__init__.py``) are still discovered via ``pkgutil.iter_modules``.
-This lets out-of-tree users drop a single-file profile into an editable
-install without the plugin dir structure. New profiles should prefer the
-plugin layout.
+``list_providers()`` scans the bundled provider plugin directory and imports
+the allowed Codex profile.
 
 Usage::
 
     from providers import get_provider_profile
-    profile = get_provider_profile("nvidia")   # ProviderProfile or None
-    profile = get_provider_profile("kimi")     # checks name + aliases
+    profile = get_provider_profile("openai-codex")
+    profile = get_provider_profile("codex")     # checks aliases
 """
 
 from __future__ import annotations
@@ -43,6 +34,7 @@ logger = logging.getLogger(__name__)
 _REGISTRY: dict[str, ProviderProfile] = {}
 _ALIASES: dict[str, str] = {}
 _discovered = False
+_ALLOWED_PROVIDER_PLUGINS = {"openai-codex"}
 
 # Repo-root ``plugins/model-providers/`` — populated at discovery time.
 _BUNDLED_PLUGINS_DIR = (
@@ -138,54 +130,17 @@ def _import_plugin_dir(plugin_dir: Path, source: str) -> None:
 
 
 def _discover_providers() -> None:
-    """Populate the registry by importing every provider plugin.
-
-    Order:
-      1. Bundled plugins at ``<repo>/plugins/model-providers/<name>/``
-      2. User plugins at ``$HERMES_HOME/plugins/model-providers/<name>/``
-      3. Legacy per-file modules at ``providers/<name>.py`` (back-compat)
-
-    Each step imports its plugins, which call ``register_provider()`` at
-    module-level. Later steps win on name collision.
-    """
+    """Populate the registry by importing the allowed bundled provider."""
     global _discovered
     if _discovered:
         return
     _discovered = True
 
-    # 1. Bundled plugins — shipped with hermes-agent.
+    # Bundled OpenAI/Codex provider only.
     if _BUNDLED_PLUGINS_DIR.is_dir():
         for child in sorted(_BUNDLED_PLUGINS_DIR.iterdir()):
             if not child.is_dir() or child.name.startswith(("_", ".")):
                 continue
+            if child.name not in _ALLOWED_PROVIDER_PLUGINS:
+                continue
             _import_plugin_dir(child, "bundled")
-
-    # 2. User plugins — under $HERMES_HOME/plugins/model-providers/<name>/.
-    #    These can override any bundled profile of the same name (last-writer-wins
-    #    in register_provider()).
-    user_dir = _user_plugins_dir()
-    if user_dir is not None:
-        for child in sorted(user_dir.iterdir()):
-            if not child.is_dir() or child.name.startswith(("_", ".")):
-                continue
-            _import_plugin_dir(child, "user")
-
-    # 3. Legacy single-file profiles at providers/<name>.py. Kept for
-    #    back-compat — if someone drops a ``providers/foo.py`` into an
-    #    editable install, it still works without the plugin layout.
-    try:
-        import pkgutil
-
-        import providers as _pkg
-
-        for _importer, modname, _ispkg in pkgutil.iter_modules(_pkg.__path__):
-            if modname.startswith("_") or modname == "base":
-                continue
-            try:
-                importlib.import_module(f"providers.{modname}")
-            except ImportError as exc:
-                logger.warning(
-                    "Failed to import legacy provider module %s: %s", modname, exc
-                )
-    except Exception:
-        pass

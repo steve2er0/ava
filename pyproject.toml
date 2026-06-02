@@ -25,9 +25,9 @@ dependencies = [
   # `uv lock` so the transitive resolution stays consistent. Don't
   # introduce ranges back without a written justification.
   #
-  # Scope rule: only packages used by EVERY hermes session belong here.
-  # Anything that's provider-specific (`anthropic`, `firecrawl-py`,
-  # `exa-py`, `fal-client`, `edge-tts`, `parallel-web`) belongs in an
+  # Scope rule: only packages used by EVERY AVA session belong here.
+  # Anything that's optional (`firecrawl-py`, `exa-py`, `fal-client`,
+  # `edge-tts`, `parallel-web`) belongs in an
   # extra and gets lazy-installed via `tools/lazy_deps.py` when the
   # user picks that backend. Smaller `dependencies` = smaller blast
   # radius for the next supply-chain attack.
@@ -71,9 +71,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Native Anthropic provider — only needed when provider=anthropic (not via
-# OpenRouter or other aggregators).
-anthropic = ["anthropic==0.86.0"]
 # Web search backends — each only loaded when the user picks it as their
 # search provider (configured via `hermes tools` or config.yaml).
 exa = ["exa-py==2.10.2"]
@@ -139,8 +136,6 @@ acp = ["agent-client-protocol==0.9.0"]
 # NOT re-added to [all] so a future quarantined release can't break fresh
 # installs (see [all] policy comment below).
 mistral = ["mistralai==2.4.8"]
-bedrock = ["boto3==1.42.89"]
-azure-identity = ["azure-identity==1.25.3"]
 termux = [
   # Baseline Android / Termux path for reliable fresh installs.
   "python-telegram-bot[webhooks]==22.6",
@@ -195,10 +190,10 @@ all = [
   # otherwise one quarantined PyPI release breaks every fresh install.
   #
   # Removed from [all] on 2026-05-12 (covered by lazy-install):
-  #   anthropic, exa, firecrawl, parallel-web, fal, edge-tts,
+  #   exa, firecrawl, parallel-web, fal, edge-tts,
   #   modal, daytona, messaging (telegram/discord/slack),
   #   matrix, slack, honcho, voice (faster-whisper),
-  #   dingtalk, feishu, bedrock, tts-premium (elevenlabs)
+  #   dingtalk, feishu, tts-premium (elevenlabs)
   #
   # Why: the matrix extra in particular pulls `mautrix[encryption]`
   # which depends on `python-olm`. python-olm has Linux-only wheels and

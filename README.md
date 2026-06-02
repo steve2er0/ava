@@ -32,8 +32,8 @@ The legacy `hermes` command is still installed as an alias for compatibility.
 
 ```bash
 ava              # Start a conversation
-ava setup        # Configure providers, tools, gateway, and API keys
-ava model        # Choose your LLM provider and model
+ava setup        # Configure OpenAI/Codex, tools, gateway, and API keys
+ava model        # Choose OpenAI Codex or OpenAI API and a model
 ava tools        # Configure enabled tools
 ava status       # Check configuration
 ava gateway      # Start the messaging gateway

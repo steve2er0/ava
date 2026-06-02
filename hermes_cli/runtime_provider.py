@@ -33,6 +33,24 @@ from hermes_cli.config import get_compatible_custom_providers, load_config
 from hermes_constants import OPENROUTER_BASE_URL
 from utils import base_url_host_matches, base_url_hostname
 
+_CODEX_ONLY_PROVIDER_ALIASES = {
+    "codex": "openai-codex",
+    "openai-codex": "openai-codex",
+    "openai_codex": "openai-codex",
+    "chatgpt-codex": "openai-codex",
+    "openai": "openai-api",
+    "openai-api": "openai-api",
+    "openai_api": "openai-api",
+}
+_CODEX_ONLY_RUNTIME_PROVIDERS = frozenset(
+    {"auto", "openai-codex", "openai-api"}
+)
+
+
+def _normalize_codex_only_provider(value: Optional[str]) -> str:
+    requested = (value or "auto").strip().lower()
+    return _CODEX_ONLY_PROVIDER_ALIASES.get(requested, requested)
+
 
 def _normalize_custom_provider_name(value: str) -> str:
     return value.strip().lower().replace(" ", "-")
@@ -278,7 +296,7 @@ def _maybe_apply_codex_app_server_runtime(
     Returns the (possibly-rewritten) api_mode."""
     if not model_cfg:
         return api_mode
-    if provider not in {"openai", "openai-codex"}:
+    if provider not in {"openai", "openai-codex", "openai-api"}:
         return api_mode
     runtime = str(model_cfg.get("openai_runtime") or "").strip().lower()
     if runtime == "codex_app_server":
@@ -1220,7 +1238,15 @@ def resolve_runtime_provider(
     persisted default. Other callers can leave it None to preserve existing
     behavior (api_mode derived from config).
     """
-    requested_provider = resolve_requested_provider(requested)
+    requested_provider = _normalize_codex_only_provider(
+        resolve_requested_provider(requested)
+    )
+    if requested_provider not in _CODEX_ONLY_RUNTIME_PROVIDERS:
+        raise AuthError(
+            f"Unknown provider '{requested_provider}'. AVA supports OpenAI "
+            "Codex and OpenAI API inference only.",
+            code="invalid_provider",
+        )
 
     # Azure Anthropic short-circuit: when explicitly targeting an Azure endpoint
     # with provider="anthropic", bypass _resolve_named_custom_runtime (which would

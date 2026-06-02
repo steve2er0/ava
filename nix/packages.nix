@@ -27,9 +27,6 @@
         # matrix is Linux-only (oqs/liboqs lacks aarch64-darwin wheels).
         full = hermesAgent.override {
           extraDependencyGroups = [
-            "anthropic"
-            "azure-identity"
-            "bedrock"
             "daytona"
             "dingtalk"
             "edge-tts"

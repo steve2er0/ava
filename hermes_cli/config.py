@@ -3380,6 +3380,14 @@ OPTIONAL_ENV_VARS = {
     },
 }
 
+_ALLOWED_INFERENCE_PROVIDER_ENV_KEYS = {"OPENAI_API_KEY", "OPENAI_BASE_URL"}
+OPTIONAL_ENV_VARS = {
+    name: info
+    for name, info in OPTIONAL_ENV_VARS.items()
+    if info.get("category") != "provider"
+    or name in _ALLOWED_INFERENCE_PROVIDER_ENV_KEYS
+}
+
 # Tool Gateway env vars are always visible — they're useful for
 # self-hosted / custom gateway setups regardless of subscription state.
 

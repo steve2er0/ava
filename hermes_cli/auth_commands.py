@@ -28,12 +28,11 @@ from agent.credential_pool import (
 )
 import hermes_cli.auth as auth_mod
 from hermes_cli.auth import PROVIDER_REGISTRY
-from hermes_constants import OPENROUTER_BASE_URL
 from hermes_cli.secret_prompt import masked_secret_prompt
 
 
 # Providers that support OAuth login in addition to API keys.
-_OAUTH_CAPABLE_PROVIDERS = {"anthropic", "nous", "openai-codex", "xai-oauth", "qwen-oauth", "google-gemini-cli", "minimax-oauth"}
+_OAUTH_CAPABLE_PROVIDERS = {"openai-codex"}
 
 
 def _get_custom_provider_names() -> list:
@@ -75,27 +74,16 @@ def _resolve_custom_provider_input(raw: str) -> str | None:
 
 def _normalize_provider(provider: str) -> str:
     normalized = (provider or "").strip().lower()
-    if normalized in {"or", "open-router"}:
-        return "openrouter"
-    if normalized in {"grok-oauth", "xai-oauth", "x-ai-oauth", "xai-grok-oauth"}:
-        return "xai-oauth"
-    # Check if it matches a custom provider name
-    custom_key = _resolve_custom_provider_input(normalized)
-    if custom_key:
-        return custom_key
-    return normalized
+    aliases = {
+        "codex": "openai-codex",
+        "openai_codex": "openai-codex",
+        "openai": "openai-api",
+        "openai_api": "openai-api",
+    }
+    return aliases.get(normalized, normalized)
 
 
 def _provider_base_url(provider: str) -> str:
-    if provider == "openrouter":
-        return OPENROUTER_BASE_URL
-    if provider.startswith(CUSTOM_POOL_PREFIX):
-        from agent.credential_pool import _get_custom_provider_config
-
-        cp_config = _get_custom_provider_config(provider)
-        if cp_config:
-            return str(cp_config.get("base_url") or "").strip()
-        return ""
     pconfig = PROVIDER_REGISTRY.get(provider)
     return pconfig.inference_base_url if pconfig else ""
 
@@ -162,7 +150,7 @@ def _format_exhausted_status(entry) -> str:
 
 def auth_add_command(args) -> None:
     provider = _normalize_provider(getattr(args, "provider", ""))
-    if provider not in PROVIDER_REGISTRY and provider != "openrouter" and not provider.startswith(CUSTOM_POOL_PREFIX):
+    if provider not in PROVIDER_REGISTRY:
         raise SystemExit(f"Unknown provider: {provider}")
 
     requested_type = str(getattr(args, "auth_type", "") or "").strip().lower()
@@ -422,11 +410,7 @@ def auth_list_command(args) -> None:
     if provider_filter:
         providers = [provider_filter]
     else:
-        providers = sorted({
-            *PROVIDER_REGISTRY.keys(),
-            "openrouter",
-            *list_custom_pool_providers(),
-        })
+        providers = sorted(PROVIDER_REGISTRY.keys())
     for provider in providers:
         pool = load_pool(provider)
         entries = pool.entries()
@@ -637,14 +621,8 @@ def _interactive_auth() -> None:
 
 def _pick_provider(prompt: str = "Provider") -> str:
     """Prompt for a provider name with auto-complete hints."""
-    known = sorted(set(list(PROVIDER_REGISTRY.keys()) + ["openrouter"]))
-    custom_names = _get_custom_provider_names()
-    if custom_names:
-        custom_display = [name for name, _key, _provider_key in custom_names]
-        print(f"\nKnown providers: {', '.join(known)}")
-        print(f"Custom endpoints: {', '.join(custom_display)}")
-    else:
-        print(f"\nKnown providers: {', '.join(known)}")
+    known = sorted(PROVIDER_REGISTRY.keys())
+    print(f"\nKnown providers: {', '.join(known)}")
     try:
         raw = input(f"{prompt}: ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -654,7 +632,7 @@ def _pick_provider(prompt: str = "Provider") -> str:
 
 def _interactive_add() -> None:
     provider = _pick_provider("Provider to add credential for")
-    if provider not in PROVIDER_REGISTRY and provider != "openrouter" and not provider.startswith(CUSTOM_POOL_PREFIX):
+    if provider not in PROVIDER_REGISTRY:
         raise SystemExit(f"Unknown provider: {provider}")
 
     # For OAuth-capable providers, ask which type

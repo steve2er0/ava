@@ -103,54 +103,12 @@ class ModelIdentity(NamedTuple):
 
 
 MODEL_ALIASES: dict[str, ModelIdentity] = {
-    # Anthropic
-    "sonnet":    ModelIdentity("anthropic", "claude-sonnet"),
-    "opus":      ModelIdentity("anthropic", "claude-opus"),
-    "haiku":     ModelIdentity("anthropic", "claude-haiku"),
-    "claude":    ModelIdentity("anthropic", "claude"),
-
     # OpenAI
     "gpt5":      ModelIdentity("openai", "gpt-5"),
     "gpt":       ModelIdentity("openai", "gpt"),
     "codex":     ModelIdentity("openai", "codex"),
     "o3":        ModelIdentity("openai", "o3"),
     "o4":        ModelIdentity("openai", "o4"),
-
-    # Google
-    "gemini":    ModelIdentity("google", "gemini"),
-
-    # DeepSeek
-    "deepseek":  ModelIdentity("deepseek", "deepseek-chat"),
-
-    # X.AI
-    "grok":      ModelIdentity("x-ai", "grok"),
-
-    # Meta
-    "llama":     ModelIdentity("meta-llama", "llama"),
-
-    # Qwen / Alibaba
-    "qwen":      ModelIdentity("qwen", "qwen"),
-
-    # MiniMax
-    "minimax":   ModelIdentity("minimax", "minimax"),
-
-    # Nvidia
-    "nemotron":  ModelIdentity("nvidia", "nemotron"),
-
-    # Moonshot / Kimi
-    "kimi":      ModelIdentity("moonshotai", "kimi"),
-
-    # Z.AI / GLM
-    "glm":       ModelIdentity("z-ai", "glm"),
-
-    # Step Plan (StepFun)
-    "step":      ModelIdentity("stepfun", "step"),
-
-    # Xiaomi
-    "mimo":      ModelIdentity("xiaomi", "mimo"),
-
-    # Arcee
-    "trinity":   ModelIdentity("arcee-ai", "trinity"),
 }
 
 
@@ -546,10 +504,10 @@ def _resolve_alias_fallback(
 ) -> Optional[tuple[str, str, str]]:
     """Try to resolve an alias on the user's authenticated providers.
 
-    Falls back to ``("openrouter", "nous")`` only when no authenticated
-    providers are supplied (backwards compat for non-interactive callers).
+    Falls back to the OpenAI/Codex providers when no authenticated providers
+    are supplied.
     """
-    providers = authenticated_providers or ("openrouter", "nous")
+    providers = authenticated_providers or ("openai-codex", "openai-api")
     for provider in providers:
         result = resolve_alias(raw_input, provider)
         if result is not None:
@@ -1156,6 +1114,35 @@ def list_authenticated_providers(
     )
 
     results: List[dict] = []
+    current_norm = (current_provider or "").strip().lower()
+    try:
+        from hermes_cli.auth import get_codex_auth_status
+        codex_logged_in = bool(get_codex_auth_status().get("logged_in"))
+    except Exception:
+        codex_logged_in = False
+    try:
+        from hermes_cli.config import get_env_value
+        openai_key = get_env_value("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    except Exception:
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+
+    for slug, name, configured in (
+        ("openai-codex", "OpenAI Codex", codex_logged_in),
+        ("openai-api", "OpenAI API", bool(openai_key)),
+    ):
+        if configured or current_norm == slug:
+            models = list(_PROVIDER_MODELS.get(slug, []))
+            results.append({
+                "slug": slug,
+                "name": name,
+                "is_current": current_norm == slug,
+                "is_user_defined": False,
+                "models": models[:max_models] if max_models else [],
+                "total_models": len(models),
+                "source": "built-in",
+            })
+    return results
+
     seen_slugs: set = set()  # lowercase-normalized to catch case variants (#9545)
     seen_mdev_ids: set = set()  # prevent duplicate entries for aliases (e.g. kimi-coding + kimi-coding-cn)
     # Effective base URLs of every built-in row we emit (normalized lower+rstrip).

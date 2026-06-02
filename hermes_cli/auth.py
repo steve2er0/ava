@@ -475,6 +475,13 @@ try:
 except Exception:
     pass
 
+_CODEX_ONLY_AUTH_PROVIDERS = frozenset({"openai-codex", "openai-api"})
+PROVIDER_REGISTRY = {
+    key: value
+    for key, value in PROVIDER_REGISTRY.items()
+    if key in _CODEX_ONLY_AUTH_PROVIDERS
+}
+
 
 # =============================================================================
 # Anthropic Key Helper
@@ -489,12 +496,6 @@ def get_anthropic_key() -> str:
 
         ANTHROPIC_API_KEY -> ANTHROPIC_TOKEN -> CLAUDE_CODE_OAUTH_TOKEN
     """
-    from hermes_cli.config import get_env_value
-
-    for var in PROVIDER_REGISTRY["anthropic"].api_key_env_vars:
-        value = get_env_value(var) or os.getenv(var, "")
-        if value:
-            return value
     return ""
 
 
@@ -1478,6 +1479,56 @@ def resolve_provider(
     5. Fallback: "openrouter"
     """
     normalized = (requested or "auto").strip().lower()
+
+    provider_aliases = {
+        "codex": "openai-codex",
+        "openai-codex": "openai-codex",
+        "openai_codex": "openai-codex",
+        "chatgpt-codex": "openai-codex",
+        "openai": "openai-api",
+        "openai-api": "openai-api",
+        "openai_api": "openai-api",
+    }
+    normalized = provider_aliases.get(normalized, normalized)
+
+    if normalized in PROVIDER_REGISTRY:
+        return normalized
+    if normalized != "auto":
+        raise AuthError(
+            f"Unknown provider '{normalized}'. AVA supports OpenAI Codex "
+            "and OpenAI API inference only.",
+            code="invalid_provider",
+        )
+
+    if explicit_api_key or explicit_base_url:
+        return "openai-api"
+
+    try:
+        auth_store = _load_auth_store()
+        active = (auth_store.get("active_provider") or "").strip().lower()
+        active = provider_aliases.get(active, active)
+        if active in PROVIDER_REGISTRY:
+            status = get_auth_status(active)
+            if status.get("logged_in"):
+                return active
+    except Exception as e:
+        logger.debug("Could not detect active OpenAI auth provider: %s", e)
+
+    try:
+        from hermes_cli.config import get_env_value
+
+        openai_key = get_env_value("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    except Exception:
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+    if has_usable_secret(openai_key):
+        return "openai-api"
+
+    raise AuthError(
+        "No OpenAI/Codex inference provider configured. Run 'ava model' "
+        "to authenticate with OpenAI Codex, or set OPENAI_API_KEY for the "
+        "OpenAI API provider.",
+        code="no_provider_configured",
+    )
 
     # Normalize provider aliases
     _PROVIDER_ALIASES = {
