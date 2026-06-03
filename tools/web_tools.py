@@ -845,6 +845,33 @@ def web_search_tool(query: str, limit: int = 5) -> str:
                 ),
             }
         else:
+            approval_callback = None
+            try:
+                from tools.terminal_tool import _get_approval_callback
+
+                approval_callback = _get_approval_callback()
+            except Exception:
+                approval_callback = None
+
+            from tools.approval import check_web_search_approval
+
+            approval = check_web_search_approval(
+                query,
+                limit,
+                backend=backend,
+                provider_name=getattr(provider, "name", "") or backend,
+                approval_callback=approval_callback,
+            )
+            if not approval.get("approved", False):
+                response_data = tool_error(
+                    approval.get("message")
+                    or "BLOCKED: web_search was denied by the user.",
+                    success=False,
+                )
+                _debug.log_call("web_search_tool", debug_call_data)
+                _debug.save()
+                return response_data
+
             logger.info(
                 "Web search via %s: '%s' (limit: %d)",
                 provider.name, query, limit,
@@ -1286,7 +1313,7 @@ from tools.registry import registry, tool_error
 
 WEB_SEARCH_SCHEMA = {
     "name": "web_search",
-    "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. The query is passed through to the configured backend, so operators such as site:domain, filetype:pdf, intitle:word, -term, and \"exact phrase\" may work when the backend supports them.",
+    "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. Before the query is sent to the configured backend, Ava may show the exact outbound request to the user for approval. If the user denies approval, do not retry, rephrase, or route around that decision. The query is passed through to the configured backend, so operators such as site:domain, filetype:pdf, intitle:word, -term, and \"exact phrase\" may work when the backend supports them.",
     "parameters": {
         "type": "object",
         "properties": {

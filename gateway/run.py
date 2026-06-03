@@ -14585,7 +14585,9 @@ class GatewayRunner:
         session_key = self._session_key_for_source(source)
 
         from tools.approval import (
-            resolve_gateway_approval, has_blocking_approval,
+            resolve_gateway_approval,
+            has_blocking_approval,
+            gateway_approval_allows_permanent,
         )
 
         if not has_blocking_approval(session_key):
@@ -14605,6 +14607,12 @@ class GatewayRunner:
             choice = "session"
         else:
             choice = "once"
+
+        if choice == "always" and not gateway_approval_allows_permanent(
+            session_key,
+            resolve_all=resolve_all,
+        ):
+            choice = "session"
 
         count = resolve_gateway_approval(session_key, choice, resolve_all=resolve_all)
         if not count:
@@ -17805,6 +17813,34 @@ class GatewayRunner:
 
                 cmd = approval_data.get("command", "")
                 desc = approval_data.get("description", "dangerous command")
+                approval_kind = str(approval_data.get("kind") or "").strip().lower()
+
+                if approval_kind == "web_search":
+                    msg = (
+                        "🔎 **Outbound web search requires approval**\n\n"
+                        "The agent wants to send this request to the configured "
+                        "search provider:\n"
+                        f"```json\n{cmd}\n```\n"
+                        f"{desc}\n\n"
+                        "Reply `/approve` to send this exact request, or `/deny` "
+                        "to cancel it."
+                    )
+                    try:
+                        _approval_send_fut = safe_schedule_threadsafe(
+                            _status_adapter.send(
+                                _status_chat_id,
+                                msg,
+                                metadata=_status_thread_metadata,
+                            ),
+                            _loop_for_step,
+                            logger=logger,
+                            log_message="Web-search approval text-send scheduling error",
+                        )
+                        if _approval_send_fut is not None:
+                            _approval_send_fut.result(timeout=15)
+                    except Exception as _e:
+                        logger.error("Failed to send web_search approval request: %s", _e)
+                    return
 
                 # Prefer button-based approval when the adapter supports it.
                 # Check the *class* for the method, not the instance — avoids

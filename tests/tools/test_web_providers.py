@@ -221,6 +221,7 @@ class TestDefaultConfig:
         assert web["backend"] == ""
         assert web["search_backend"] == ""
         assert web["extract_backend"] == ""
+        assert web["require_search_approval"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +303,10 @@ class TestUnconfiguredErrorEnvelopeParity:
         monkeypatch.setattr(web_tools, "_firecrawl_client", None, raising=False)
         monkeypatch.setattr(web_tools, "_firecrawl_client_config", None, raising=False)
         monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        monkeypatch.setattr(
+            "hermes_cli.config.load_config",
+            lambda: {"web": {"require_search_approval": False}},
+        )
 
         result = json.loads(web_tools.web_search_tool("hello world", limit=3))
         assert "error" in result, f"expected top-level 'error' key, got {result}"
@@ -478,7 +483,14 @@ class TestDispatchersTriggerPluginDiscovery:
             )
             monkeypatch.setattr(
                 web_tools, "_load_web_config",
-                lambda: {"search_backend": "brave-free"},
+                lambda: {
+                    "search_backend": "brave-free",
+                    "require_search_approval": False,
+                },
+            )
+            monkeypatch.setattr(
+                "hermes_cli.config.load_config",
+                lambda: {"web": {"require_search_approval": False}},
             )
             assert web_search_registry.get_provider("brave-free") is None
 
@@ -491,4 +503,3 @@ class TestDispatchersTriggerPluginDiscovery:
             assert web_search_registry.get_provider("brave-free") is not None
         finally:
             restore()
-

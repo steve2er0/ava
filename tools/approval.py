@@ -9,6 +9,8 @@ This module is the single source of truth for the dangerous command system:
 """
 
 import contextvars
+import hashlib
+import json
 import logging
 import os
 import re
@@ -605,6 +607,20 @@ def has_blocking_approval(session_key: str) -> bool:
     """Check if a session has one or more blocking gateway approvals waiting."""
     with _lock:
         return bool(_gateway_queues.get(session_key))
+
+
+def gateway_approval_allows_permanent(
+    session_key: str,
+    *,
+    resolve_all: bool = False,
+) -> bool:
+    """Return whether pending gateway approval(s) may be permanently allowed."""
+    with _lock:
+        queue = _gateway_queues.get(session_key)
+        if not queue:
+            return True
+        targets = list(queue) if resolve_all else [queue[0]]
+        return all(entry.data.get("allow_permanent", True) for entry in targets)
 
 
 def submit_pending(session_key: str, approval: dict):
@@ -1639,6 +1655,272 @@ def check_execute_code_guard(code: str, env_type: str) -> dict:
     # persists to future scripts.
     return {"approved": True, "message": None,
             "user_approved": True, "description": description}
+
+
+def _web_search_approval_required() -> bool:
+    """Return whether outbound web_search calls require explicit consent."""
+    try:
+        from hermes_cli.config import load_config
+
+        web_cfg = load_config().get("web", {}) or {}
+    except Exception as exc:
+        logger.warning("Failed to load web approval config: %s", exc)
+        return True
+
+    # Accept a couple of obvious spellings so hand-edited configs do what
+    # operators expect. Default-on because this gates external data egress.
+    raw = web_cfg.get(
+        "require_search_approval",
+        web_cfg.get("search_approval_required", True),
+    )
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+    return True
+
+
+def _web_search_approval_key(
+    query: str,
+    limit: int,
+    backend: str = "",
+    provider_name: str = "",
+) -> str:
+    payload = {
+        "query": str(query or ""),
+        "limit": int(limit),
+        "backend": str(backend or ""),
+        "provider": str(provider_name or ""),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"web_search:{digest}"
+
+
+def _web_search_approval_payload(
+    query: str,
+    limit: int,
+    backend: str = "",
+    provider_name: str = "",
+) -> str:
+    payload = {
+        "tool": "web_search",
+        "query": str(query or ""),
+        "limit": int(limit),
+    }
+    if backend:
+        payload["backend"] = str(backend)
+    if provider_name:
+        payload["provider"] = str(provider_name)
+    return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+def check_web_search_approval(
+    query: str,
+    limit: int,
+    *,
+    backend: str = "",
+    provider_name: str = "",
+    approval_callback=None,
+) -> dict:
+    """Require explicit approval before sending a web_search query off-host.
+
+    The approval is keyed to the exact outbound query payload. "Session"
+    approval therefore only suppresses repeat prompts for the same query,
+    limit, backend, and provider in the current session; it does not create a
+    blanket web-search pass.
+    """
+    if not _web_search_approval_required():
+        return {"approved": True, "message": None}
+
+    is_cli = env_var_enabled("HERMES_INTERACTIVE")
+    is_gateway = _is_gateway_approval_context()
+    is_ask = env_var_enabled("HERMES_EXEC_ASK")
+
+    if env_var_enabled("HERMES_CRON_SESSION"):
+        if _get_cron_approval_mode() == "deny":
+            return {
+                "approved": False,
+                "message": (
+                    "BLOCKED: web_search would send this query to an external "
+                    "search provider, but cron jobs run without a user present "
+                    "to approve outbound data. Use a non-networked approach, "
+                    "or set approvals.cron_mode: approve only for a trusted "
+                    "cron profile."
+                ),
+                "pattern_key": "web_search",
+                "description": "outbound web search requires approval",
+                "outcome": "blocked",
+                "user_consent": False,
+            }
+        return {"approved": True, "message": None}
+
+    if not is_cli and not is_gateway and not is_ask:
+        logger.warning(
+            "BLOCKED web_search in non-interactive non-gateway context: "
+            "query=%r limit=%s backend=%s provider=%s. Set "
+            "web.require_search_approval: false only for trusted unattended "
+            "profiles.",
+            str(query or "")[:200],
+            limit,
+            backend,
+            provider_name,
+        )
+        return {
+            "approved": False,
+            "message": (
+                "BLOCKED: web_search would send this query to an external "
+                "search provider, but no interactive approval surface is "
+                "available. Do NOT retry or rephrase the search. Use the CLI "
+                "or gateway so the user can approve it, or set "
+                "web.require_search_approval: false only for a trusted "
+                "unattended profile."
+            ),
+            "pattern_key": "web_search",
+            "description": "outbound web search requires approval",
+            "outcome": "blocked",
+            "user_consent": False,
+        }
+
+    session_key = get_current_session_key()
+    pattern_key = _web_search_approval_key(query, limit, backend, provider_name)
+    if is_approved(session_key, pattern_key):
+        return {"approved": True, "message": None}
+
+    command = _web_search_approval_payload(query, limit, backend, provider_name)
+    description = (
+        "Outbound web search request. The JSON shown here is the data that "
+        "will be sent to the selected search provider. Approve only if this "
+        "query is OK to leave this machine."
+    )
+
+    if is_gateway or is_ask:
+        notify_cb = None
+        with _lock:
+            notify_cb = _gateway_notify_cbs.get(session_key)
+
+        approval_data = {
+            "kind": "web_search",
+            "command": command,
+            "pattern_key": pattern_key,
+            "pattern_keys": [pattern_key],
+            "description": description,
+            "allow_permanent": False,
+        }
+
+        if notify_cb is not None:
+            decision = _await_gateway_decision(
+                session_key, notify_cb, approval_data, surface="web_search"
+            )
+            if decision.get("notify_failed"):
+                return {
+                    "approved": False,
+                    "message": (
+                        "BLOCKED: Failed to send web_search approval request "
+                        "to user. Do NOT retry."
+                    ),
+                    "pattern_key": pattern_key,
+                    "description": description,
+                    "outcome": "notify_failed",
+                    "user_consent": False,
+                }
+
+            resolved = decision["resolved"]
+            choice = decision["choice"]
+            if not resolved or choice is None or choice == "deny":
+                reason = "timed out without user response" if not resolved else "denied by user"
+                addendum = " Silence is not consent." if not resolved else ""
+                return {
+                    "approved": False,
+                    "message": (
+                        f"BLOCKED: web_search {reason}. The user has NOT "
+                        f"consented to sending this query to a search provider. "
+                        f"Do NOT retry the same search or rephrase it to bypass "
+                        f"the decision.{addendum}"
+                    ),
+                    "pattern_key": pattern_key,
+                    "description": description,
+                    "outcome": "timeout" if not resolved else "denied",
+                    "user_consent": False,
+                }
+
+            if choice in {"session", "always"}:
+                approve_session(session_key, pattern_key)
+            return {
+                "approved": True,
+                "message": None,
+                "user_approved": True,
+                "description": description,
+            }
+
+        submit_pending(session_key, approval_data)
+        return {
+            "approved": False,
+            "pattern_key": pattern_key,
+            "status": "pending_approval",
+            "approval_pending": True,
+            "command": command,
+            "description": description,
+            "message": (
+                "Outbound web_search requires approval before data leaves "
+                f"this machine.\n\n**Request:**\n```json\n{command}\n```"
+            ),
+        }
+
+    _fire_approval_hook(
+        "pre_approval_request",
+        command=command,
+        description=description,
+        pattern_key=pattern_key,
+        pattern_keys=[pattern_key],
+        session_key=session_key,
+        surface="web_search",
+    )
+    choice = prompt_dangerous_approval(
+        command,
+        description,
+        allow_permanent=False,
+        approval_callback=approval_callback,
+    )
+    _fire_approval_hook(
+        "post_approval_response",
+        command=command,
+        description=description,
+        pattern_key=pattern_key,
+        pattern_keys=[pattern_key],
+        session_key=session_key,
+        surface="web_search",
+        choice=choice,
+    )
+
+    if choice == "deny":
+        return {
+            "approved": False,
+            "message": (
+                "BLOCKED: User denied web_search. The user has NOT consented "
+                "to sending this query to a search provider. Do NOT retry the "
+                "same search or rephrase it to bypass the decision."
+            ),
+            "pattern_key": pattern_key,
+            "description": description,
+            "outcome": "denied",
+            "user_consent": False,
+        }
+
+    if choice == "session":
+        approve_session(session_key, pattern_key)
+
+    return {
+        "approved": True,
+        "message": None,
+        "user_approved": True,
+        "description": description,
+    }
 
 
 # Load permanent allowlist from config on module import

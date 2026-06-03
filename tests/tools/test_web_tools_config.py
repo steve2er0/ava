@@ -9,6 +9,7 @@ Coverage:
 """
 
 import importlib
+import importlib.machinery
 import json
 import os
 import sys
@@ -405,6 +406,7 @@ class TestParallelClientConfig:
         tools.web_tools._parallel_client = None
         os.environ.pop("PARALLEL_API_KEY", None)
         fake_parallel = types.ModuleType("parallel")
+        fake_parallel.__spec__ = importlib.machinery.ModuleSpec("parallel", loader=None)
 
         class Parallel:
             def __init__(self, api_key):
@@ -426,7 +428,8 @@ class TestParallelClientConfig:
 
     def test_creates_client_with_key(self):
         """PARALLEL_API_KEY set → creates Parallel client."""
-        with patch.dict(os.environ, {"PARALLEL_API_KEY": "test-key"}):
+        with patch.dict(os.environ, {"PARALLEL_API_KEY": "test-key"}), \
+             patch("tools.lazy_deps.ensure", return_value=None):
             from tools.web_tools import _get_parallel_client
             from parallel import Parallel
             client = _get_parallel_client()
@@ -441,7 +444,8 @@ class TestParallelClientConfig:
 
     def test_singleton_returns_same_instance(self):
         """Second call returns cached client."""
-        with patch.dict(os.environ, {"PARALLEL_API_KEY": "test-key"}):
+        with patch.dict(os.environ, {"PARALLEL_API_KEY": "test-key"}), \
+             patch("tools.lazy_deps.ensure", return_value=None):
             from tools.web_tools import _get_parallel_client
             client1 = _get_parallel_client()
             client2 = _get_parallel_client()
@@ -500,6 +504,7 @@ class TestWebSearchSchema:
 
         with patch("tools.web_tools._get_search_backend", return_value="parallel"), \
              patch("agent.web_search_registry.get_provider", return_value=fake_provider), \
+             patch("hermes_cli.config.load_config", return_value={"web": {"require_search_approval": False}}), \
              patch("tools.interrupt.is_interrupted", return_value=False), \
              patch.object(tools.web_tools._debug, "log_call"), \
              patch.object(tools.web_tools._debug, "save"):
@@ -507,6 +512,80 @@ class TestWebSearchSchema:
 
         assert result == {"success": True, "data": {"web": []}}
         fake_search.assert_called_once_with("docs", 100)
+
+
+class TestWebSearchApproval:
+    """web_search must obtain consent before sending query text off-host."""
+
+    def _fake_provider(self):
+        fake_search = MagicMock(return_value={"success": True, "data": {"web": []}})
+        fake_provider = MagicMock(
+            name="BraveWebSearchProvider",
+            supports_search=MagicMock(return_value=True),
+        )
+        fake_provider.search = fake_search
+        fake_provider.name = "brave-free"
+        return fake_provider, fake_search
+
+    def _patch_dispatch(self, tools_web, fake_provider):
+        return (
+            patch("tools.web_tools._get_search_backend", return_value="brave-free"),
+            patch("agent.web_search_registry.get_provider", return_value=fake_provider),
+            patch("tools.interrupt.is_interrupted", return_value=False),
+            patch.object(tools_web._debug, "log_call"),
+            patch.object(tools_web._debug, "save"),
+        )
+
+    def test_denied_search_does_not_call_provider(self, monkeypatch):
+        import tools.web_tools
+        from tools.terminal_tool import set_approval_callback
+        import tools.approval as approval_module
+
+        fake_provider, fake_search = self._fake_provider()
+        monkeypatch.setenv("HERMES_INTERACTIVE", "1")
+        monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
+        set_approval_callback(lambda *args, **kwargs: "deny")
+        approval_module.clear_session("default")
+
+        patchers = self._patch_dispatch(tools.web_tools, fake_provider)
+        try:
+            with patch("hermes_cli.config.load_config", return_value={
+                "web": {"require_search_approval": True},
+                "approvals": {"mode": "manual"},
+            }), patchers[0], patchers[1], patchers[2], patchers[3], patchers[4]:
+                result = json.loads(tools.web_tools.web_search_tool("secret project roadmap", limit=3))
+        finally:
+            set_approval_callback(None)
+            approval_module.clear_session("default")
+
+        assert "error" in result
+        assert "User denied web_search" in result["error"]
+        fake_search.assert_not_called()
+
+    def test_approved_search_calls_provider(self, monkeypatch):
+        import tools.web_tools
+        from tools.terminal_tool import set_approval_callback
+        import tools.approval as approval_module
+
+        fake_provider, fake_search = self._fake_provider()
+        monkeypatch.setenv("HERMES_INTERACTIVE", "1")
+        monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
+        set_approval_callback(lambda *args, **kwargs: "once")
+        approval_module.clear_session("default")
+
+        patchers = self._patch_dispatch(tools.web_tools, fake_provider)
+        try:
+            with patch("hermes_cli.config.load_config", return_value={
+                "web": {"require_search_approval": True},
+                "approvals": {"mode": "manual"},
+            }), patchers[0], patchers[1], patchers[2], patchers[3], patchers[4]:
+                result = json.loads(tools.web_tools.web_search_tool("public docs", limit=3))
+        finally:
+            set_approval_callback(None)
+            approval_module.clear_session("default")
+
+        assert result == {"success": True, "data": {"web": []}}
+        fake_search.assert_called_once_with("public docs", 3)
 
 
 class TestWebSearchErrorHandling:
@@ -528,6 +607,7 @@ class TestWebSearchErrorHandling:
 
         with patch("tools.web_tools._get_search_backend", return_value="firecrawl"), \
              patch("agent.web_search_registry.get_provider", return_value=fake_provider), \
+             patch("hermes_cli.config.load_config", return_value={"web": {"require_search_approval": False}}), \
              patch("tools.interrupt.is_interrupted", return_value=False), \
              patch.object(tools.web_tools._debug, "log_call") as mock_log_call, \
              patch.object(tools.web_tools._debug, "save"):

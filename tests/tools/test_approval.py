@@ -13,6 +13,7 @@ from tools.approval import (
     _get_approval_mode,
     _smart_approve,
     approve_session,
+    check_web_search_approval,
     detect_dangerous_command,
     is_approved,
     load_permanent,
@@ -43,6 +44,50 @@ class TestSmartApproval:
         assert mock_call.call_args.kwargs["task"] == "approval"
         assert mock_call.call_args.kwargs["temperature"] == 0
         assert mock_call.call_args.kwargs["max_tokens"] == 16
+
+
+class TestWebSearchApproval:
+    def test_cron_blocks_web_search_by_default(self, monkeypatch):
+        monkeypatch.setenv("HERMES_CRON_SESSION", "1")
+        monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+        monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
+        monkeypatch.delenv("HERMES_EXEC_ASK", raising=False)
+
+        with mock_patch("hermes_cli.config.load_config", return_value={
+            "web": {"require_search_approval": True},
+            "approvals": {"mode": "manual", "cron_mode": "deny"},
+        }):
+            result = check_web_search_approval(
+                "confidential customer roadmap",
+                5,
+                backend="brave-free",
+                provider_name="brave-free",
+            )
+
+        assert result["approved"] is False
+        assert "web_search would send this query" in result["message"]
+        assert result["user_consent"] is False
+
+    def test_noninteractive_blocks_web_search_without_approval_surface(self, monkeypatch):
+        monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
+        monkeypatch.delenv("HERMES_INTERACTIVE", raising=False)
+        monkeypatch.delenv("HERMES_GATEWAY_SESSION", raising=False)
+        monkeypatch.delenv("HERMES_EXEC_ASK", raising=False)
+
+        with mock_patch("hermes_cli.config.load_config", return_value={
+            "web": {"require_search_approval": True},
+            "approvals": {"mode": "off"},
+        }):
+            result = check_web_search_approval(
+                "confidential customer roadmap",
+                5,
+                backend="brave-free",
+                provider_name="brave-free",
+            )
+
+        assert result["approved"] is False
+        assert "no interactive approval surface is available" in result["message"]
+        assert result["user_consent"] is False
 
 
 class TestDetectDangerousRm:

@@ -183,6 +183,7 @@ class TestWebSearchTavily:
 
         with patch("tools.web_tools._get_backend", return_value="tavily"), \
              patch.dict(os.environ, {"TAVILY_API_KEY": "tvly-test"}), \
+             patch("hermes_cli.config.load_config", return_value={"web": {"require_search_approval": False}}), \
              patch("tools.web_tools.httpx.post", return_value=mock_response), \
              patch("tools.interrupt.is_interrupted", return_value=False):
             from tools.web_tools import web_search_tool
@@ -224,4 +225,3 @@ class TestWebExtractTavily:
             assert "results" in result
             assert len(result["results"]) == 1
             assert result["results"][0]["url"] == "https://example.com"
-

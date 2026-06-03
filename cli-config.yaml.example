@@ -303,6 +303,20 @@ prompt_caching:
   cache_ttl: "5m" # use "1h" for long sessions with pauses between turns
 
 # =============================================================================
+# Web Search
+# =============================================================================
+# Web tools are opt-in via `ava tools enable search` or `ava tools enable web`.
+# When enabled, web_search asks for approval before sending query text to an
+# external search provider. This gate is independent of general command
+# approval settings; keep it true unless the profile is intentionally trusted
+# to make unattended searches.
+web:
+  backend: ""                 # shared fallback for search + extract
+  search_backend: ""          # e.g. brave-free, searxng, ddgs, tavily, exa
+  extract_backend: ""         # e.g. tavily, exa, firecrawl, parallel
+  require_search_approval: true
+
+# =============================================================================
 # Auxiliary Models (Advanced — Experimental)
 # =============================================================================
 # Hermes uses lightweight "auxiliary" models for side tasks: image analysis,

@@ -929,6 +929,10 @@ DEFAULT_CONFIG = {
         "backend": "",           # shared fallback — applies to both search and extract
         "search_backend": "",    # per-capability override for web_search (e.g. "searxng")
         "extract_backend": "",   # per-capability override for web_extract (e.g. "native")
+        # Require explicit user approval before web_search sends query text
+        # to an external search provider. This is independent of general
+        # command approval mode and default-on because data leaves the machine.
+        "require_search_approval": True,
     },
 
     "browser": {
