@@ -301,6 +301,9 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     volatile_parts: List[str] = []
 
     if agent._memory_store:
+        scoped_block = agent._memory_store.format_scoped_for_system_prompt()
+        if scoped_block:
+            volatile_parts.append(scoped_block)
         if agent._memory_enabled:
             mem_block = agent._memory_store.format_for_system_prompt("memory")
             if mem_block:

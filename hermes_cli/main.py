@@ -13505,11 +13505,12 @@ Examples:
         "memory",
         help="Configure external memory provider",
         description=(
-            "Set up and manage external memory provider plugins.\n\n"
+            "Set up and manage memory scopes and external memory provider plugins.\n\n"
             "Available providers: honcho, openviking, mem0, hindsight,\n"
             "holographic, retaindb, byterover.\n\n"
             "Only one external provider can be active at a time.\n"
-            "Built-in memory (MEMORY.md/USER.md) is always active."
+            "Built-in memory (MEMORY.md/USER.md) and scoped filesystem "
+            "memory run through the built-in memory surface."
         ),
     )
     memory_sub = memory_parser.add_subparsers(dest="memory_command")
@@ -13523,6 +13524,27 @@ Examples:
         help="Provider to configure directly (e.g. honcho), skipping the picker",
     )
     memory_sub.add_parser("status", help="Show current memory provider config")
+    _init_scopes_parser = memory_sub.add_parser(
+        "init-scopes",
+        help="Create the Core/Team/Project/User scoped memory directories",
+    )
+    _init_scopes_parser.add_argument(
+        "--project",
+        default="",
+        help="Optional project id to initialize and set active",
+    )
+    _init_scopes_parser.add_argument(
+        "--user",
+        default="",
+        help="Optional scoped user id to initialize and set active",
+    )
+    _project_parser = memory_sub.add_parser(
+        "project",
+        help="Show or set the explicit active Project Memory id",
+    )
+    _project_sub = _project_parser.add_subparsers(dest="project_action")
+    _project_set = _project_sub.add_parser("set", help="Set active Project Memory id")
+    _project_set.add_argument("project_id", help="Project id, e.g. SLS")
     memory_sub.add_parser("off", help="Disable external provider (built-in only)")
     _reset_parser = memory_sub.add_parser(
         "reset",

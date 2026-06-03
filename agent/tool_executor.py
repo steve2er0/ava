@@ -731,6 +731,12 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                 target=target,
                 content=function_args.get("content"),
                 old_text=function_args.get("old_text"),
+                scope=function_args.get("scope"),
+                path=function_args.get("path"),
+                title=function_args.get("title"),
+                category=function_args.get("category"),
+                source=function_args.get("source"),
+                applicability_limits=function_args.get("applicability_limits"),
                 store=agent._memory_store,
             )
             # Bridge: notify external memory provider of built-in memory writes

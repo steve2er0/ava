@@ -387,6 +387,22 @@ memory:
   # For exit/reset, only fires if the session had at least this many user turns.
   flush_min_turns: 6        # Min user turns to trigger flush on exit/reset (0 = disabled)
 
+  # Scoped memory: one AVA engine with separate Core, Team, Project, User,
+  # and Session memory scopes. Team Memory writes go to candidates for review;
+  # approved team knowledge is never updated automatically.
+  scopes:
+    enabled: true
+    root: ""                # empty = <AVA_HOME>/scoped_memory
+    core_path: ""           # empty = bundled/repo ava_core
+    team_path: ""           # empty = <root>/team_memory
+    projects_path: ""       # empty = <root>/projects
+    users_path: ""          # empty = <root>/users
+    project_id: ""          # explicit active project; no cwd inference
+    user_id: ""             # empty = platform user, OS user, or default
+    load_mode: "summaries"  # v1 injects concise summary/index files
+    summary_char_limit: 3000
+    total_char_limit: 12000
+
 # =============================================================================
 # Session Reset Policy (Messaging Platforms)
 # =============================================================================

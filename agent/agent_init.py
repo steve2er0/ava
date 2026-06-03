@@ -1073,11 +1073,19 @@ def init_agent(
             agent._memory_enabled = mem_config.get("memory_enabled", False)
             agent._user_profile_enabled = mem_config.get("user_profile_enabled", False)
             agent._memory_nudge_interval = int(mem_config.get("nudge_interval", 10))
-            if agent._memory_enabled or agent._user_profile_enabled:
+            _scoped_config = mem_config.get("scopes", {})
+            _scoped_enabled = (
+                isinstance(_scoped_config, dict)
+                and bool(_scoped_config.get("enabled", False))
+            )
+            if agent._memory_enabled or agent._user_profile_enabled or _scoped_enabled:
                 from tools.memory_tool import MemoryStore
                 agent._memory_store = MemoryStore(
                     memory_char_limit=mem_config.get("memory_char_limit", 2200),
                     user_char_limit=mem_config.get("user_char_limit", 1375),
+                    scoped_config=_scoped_config if _scoped_enabled else None,
+                    scoped_user_id=agent._user_id or "",
+                    scoped_user_name=agent._user_name or "",
                 )
                 agent._memory_store.load_from_disk()
         except Exception:

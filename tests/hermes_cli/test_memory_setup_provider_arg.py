@@ -48,3 +48,15 @@ class TestMemorySetupProviderRouting:
         out = capsys.readouterr().out
         assert "not found" in out
         assert "hermes memory setup" in out
+
+    def test_init_scopes_routes_to_initializer(self):
+        args = SimpleNamespace(memory_command="init-scopes")
+        with patch.object(memory_setup, "cmd_init_scopes") as init:
+            memory_setup.memory_command(args)
+        init.assert_called_once_with(args)
+
+    def test_project_routes_to_project_handler(self):
+        args = SimpleNamespace(memory_command="project")
+        with patch.object(memory_setup, "cmd_project") as project:
+            memory_setup.memory_command(args)
+        project.assert_called_once_with(args)

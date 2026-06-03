@@ -34,6 +34,7 @@ from hermes_constants import get_hermes_home
 from typing import Dict, Any, List, Optional
 
 from utils import atomic_replace
+from agent.scoped_memory import ScopedMemoryStore
 
 # fcntl is Unix-only; on Windows use msvcrt for file locking
 msvcrt = None
@@ -121,11 +122,25 @@ class MemoryStore:
         Tool responses always reflect this live state.
     """
 
-    def __init__(self, memory_char_limit: int = 2200, user_char_limit: int = 1375):
+    def __init__(
+        self,
+        memory_char_limit: int = 2200,
+        user_char_limit: int = 1375,
+        scoped_config: Optional[Dict[str, Any]] = None,
+        scoped_user_id: str = "",
+        scoped_user_name: str = "",
+    ):
         self.memory_entries: List[str] = []
         self.user_entries: List[str] = []
         self.memory_char_limit = memory_char_limit
         self.user_char_limit = user_char_limit
+        self.scoped_store: Optional[ScopedMemoryStore] = None
+        if scoped_config and scoped_config.get("enabled", True):
+            self.scoped_store = ScopedMemoryStore.from_config(
+                scoped_config,
+                user_id=scoped_user_id,
+                user_name=scoped_user_name,
+            )
         # Frozen snapshot for system prompt -- set once at load_from_disk()
         self._system_prompt_snapshot: Dict[str, str] = {"memory": "", "user": ""}
 
@@ -168,6 +183,8 @@ class MemoryStore:
             "memory": self._render_block("memory", sanitized_memory),
             "user": self._render_block("user", sanitized_user),
         }
+        if self.scoped_store:
+            self.scoped_store.load_from_disk()
 
     @staticmethod
     def _sanitize_entries_for_snapshot(entries: List[str], filename: str) -> List[str]:
@@ -453,6 +470,12 @@ class MemoryStore:
         block = self._system_prompt_snapshot.get(target, "")
         return block if block else None
 
+    def format_scoped_for_system_prompt(self) -> Optional[str]:
+        """Return the frozen scoped-memory prompt block, if configured."""
+        if not self.scoped_store:
+            return None
+        return self.scoped_store.format_for_system_prompt()
+
     # -- Internal helpers --
 
     def _success_response(self, target: str, message: str = None) -> Dict[str, Any]:
@@ -604,6 +627,12 @@ def memory_tool(
     target: str = "memory",
     content: str = None,
     old_text: str = None,
+    scope: str = None,
+    path: str = None,
+    title: str = None,
+    category: str = None,
+    source: str = None,
+    applicability_limits: str = None,
     store: Optional[MemoryStore] = None,
 ) -> str:
     """
@@ -613,6 +642,51 @@ def memory_tool(
     """
     if store is None:
         return tool_error("Memory is not available. It may be disabled in config or this environment.", success=False)
+
+    scoped_actions = {
+        "read_scope",
+        "save_personal",
+        "save_project",
+        "propose_team_candidate",
+        "list_candidates",
+    }
+    if action in scoped_actions:
+        scoped_store = getattr(store, "scoped_store", None)
+        if scoped_store is None:
+            return tool_error(
+                "Scoped memory is not available. Enable memory.scopes.enabled in config.",
+                success=False,
+            )
+        scoped_target_hint = target if target not in {None, "", "memory", "user"} else ""
+        if action == "read_scope":
+            result = scoped_store.read_scope(scope or scoped_target_hint or "user", path=path or "")
+        elif action == "save_personal":
+            if not content:
+                return tool_error("Content is required for 'save_personal'.", success=False)
+            result = scoped_store.save_personal(
+                content,
+                category=category or scoped_target_hint or "preferences",
+            )
+        elif action == "save_project":
+            if not content:
+                return tool_error("Content is required for 'save_project'.", success=False)
+            result = scoped_store.save_project(
+                content,
+                category=category or scoped_target_hint or "project_context",
+            )
+        elif action == "propose_team_candidate":
+            if not content:
+                return tool_error("Content is required for 'propose_team_candidate'.", success=False)
+            result = scoped_store.propose_team_candidate(
+                content,
+                title=title or "",
+                scope=scope or "",
+                source=source or "",
+                applicability_limits=applicability_limits or "",
+            )
+        else:
+            result = scoped_store.list_candidates()
+        return json.dumps(result, ensure_ascii=False)
 
     if target not in {"memory", "user"}:
         return tool_error(f"Invalid target '{target}'. Use 'memory' or 'user'.", success=False)
@@ -667,11 +741,18 @@ MEMORY_SCHEMA = {
         "state to memory; use session_search to recall those from past transcripts.\n"
         "If you've discovered a new way to do something, solved a problem that could be "
         "necessary later, save it as a skill with the skill tool.\n\n"
-        "TWO TARGETS:\n"
+        "TWO LEGACY TARGETS:\n"
         "- 'user': who the user is -- name, role, preferences, communication style, pet peeves\n"
         "- 'memory': your notes -- environment facts, project conventions, tool quirks, lessons learned\n\n"
-        "ACTIONS: add (new entry), replace (update existing -- old_text identifies it), "
-        "remove (delete -- old_text identifies it).\n\n"
+        "SCOPED MEMORY ACTIONS:\n"
+        "- read_scope: read loaded Core/Team/Project/User scoped memory summaries or a safe relative path\n"
+        "- save_personal: save a user-scoped preference/expertise/workflow note\n"
+        "- save_project: save project-scoped context/assumption/validation/issue/file-map note\n"
+        "- propose_team_candidate: save reusable team knowledge as a review candidate only\n"
+        "- list_candidates: list pending team candidate knowledge files\n\n"
+        "Never write directly to approved Team Memory. Use propose_team_candidate for reusable team knowledge.\n\n"
+        "ACTIONS: add (new legacy entry), replace (update existing -- old_text identifies it), "
+        "remove (delete -- old_text identifies it), plus the scoped actions above.\n\n"
         "SKIP: trivial/obvious info, things easily re-discovered, raw data dumps, and temporary task state."
     ),
     "parameters": {
@@ -679,24 +760,72 @@ MEMORY_SCHEMA = {
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["add", "replace", "remove"],
+                "enum": [
+                    "add",
+                    "replace",
+                    "remove",
+                    "read_scope",
+                    "save_personal",
+                    "save_project",
+                    "propose_team_candidate",
+                    "list_candidates",
+                ],
                 "description": "The action to perform."
             },
             "target": {
                 "type": "string",
-                "enum": ["memory", "user"],
-                "description": "Which memory store: 'memory' for personal notes, 'user' for user profile."
+                "enum": [
+                    "memory",
+                    "user",
+                    "preferences",
+                    "expertise",
+                    "workflow_preferences",
+                    "project_context",
+                    "assumptions",
+                    "validation_history",
+                    "known_issues",
+                    "file_map",
+                    "core",
+                    "team",
+                    "project",
+                ],
+                "description": "Legacy target for add/replace/remove, or category/scope hint for scoped actions."
             },
             "content": {
                 "type": "string",
-                "description": "The entry content. Required for 'add' and 'replace'."
+                "description": "The entry content. Required for add, replace, save_personal, save_project, and propose_team_candidate."
             },
             "old_text": {
                 "type": "string",
                 "description": "Short unique substring identifying the entry to replace or remove."
             },
+            "scope": {
+                "type": "string",
+                "enum": ["core", "team", "project", "user"],
+                "description": "Scoped memory scope for read_scope or team candidate classification."
+            },
+            "path": {
+                "type": "string",
+                "description": "Optional safe relative path inside the selected scope for read_scope."
+            },
+            "title": {
+                "type": "string",
+                "description": "Title for a team candidate knowledge file."
+            },
+            "category": {
+                "type": "string",
+                "description": "Category for save_personal or save_project; defaults from target when omitted."
+            },
+            "source": {
+                "type": "string",
+                "description": "Source context for team candidate knowledge."
+            },
+            "applicability_limits": {
+                "type": "string",
+                "description": "Limits, assumptions, or review cautions for team candidate knowledge."
+            },
         },
-        "required": ["action", "target"],
+        "required": ["action"],
     },
 }
 
@@ -713,11 +842,14 @@ registry.register(
         target=args.get("target", "memory"),
         content=args.get("content"),
         old_text=args.get("old_text"),
+        scope=args.get("scope"),
+        path=args.get("path"),
+        title=args.get("title"),
+        category=args.get("category"),
+        source=args.get("source"),
+        applicability_limits=args.get("applicability_limits"),
         store=kw.get("store")),
     check_fn=check_memory_requirements,
     emoji="🧠",
 )
-
-
-
 

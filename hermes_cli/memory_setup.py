@@ -388,6 +388,87 @@ def _write_env_vars(env_path: Path, env_writes: dict) -> None:
 # Status
 # ---------------------------------------------------------------------------
 
+def _scoped_store_from_config(config: dict):
+    from agent.scoped_memory import ScopedMemoryStore
+
+    mem_config = config.get("memory", {})
+    scopes_config = mem_config.get("scopes", {}) if isinstance(mem_config, dict) else {}
+    return ScopedMemoryStore.from_config(scopes_config)
+
+
+def _ensure_scopes_config(config: dict) -> dict:
+    if not isinstance(config.get("memory"), dict):
+        config["memory"] = {}
+    scopes = config["memory"].get("scopes")
+    if not isinstance(scopes, dict):
+        scopes = {}
+        config["memory"]["scopes"] = scopes
+    scopes.setdefault("enabled", True)
+    scopes.setdefault("load_mode", "summaries")
+    return scopes
+
+
+def cmd_init_scopes(args) -> None:
+    """Create the scoped-memory directory skeleton."""
+    from hermes_cli.config import load_config, save_config
+    from agent.scoped_memory import normalize_scope_id
+
+    config = load_config()
+    scopes = _ensure_scopes_config(config)
+    project_id = normalize_scope_id(
+        str(getattr(args, "project", "") or "").strip(),
+        fallback="",
+    )
+    user_id = normalize_scope_id(
+        str(getattr(args, "user", "") or "").strip(),
+        fallback="",
+    )
+    if project_id:
+        scopes["project_id"] = project_id
+    if user_id:
+        scopes["user_id"] = user_id
+    save_config(config)
+
+    store = _scoped_store_from_config(config)
+    result = store.initialize_layout(project_id=project_id, user_id=user_id)
+
+    print("\nScoped memory initialized")
+    print("─" * 40)
+    print(f"  Root:      {result['root']}")
+    print(f"  Team:      {result['team_path']}")
+    print(f"  Projects:  {result['projects_path']}")
+    print(f"  Users:     {result['users_path']}")
+    if result.get("project_id"):
+        print(f"  Project:   {result['project_id']}")
+    print(f"  User:      {result['user_id']}")
+    print("\n  Team writes from AVA go to team_memory/candidates/ for review.\n")
+
+
+def cmd_project(args) -> None:
+    """Set or show the explicit active Project Memory id."""
+    from hermes_cli.config import load_config, save_config
+    from agent.scoped_memory import normalize_scope_id
+
+    config = load_config()
+    scopes = _ensure_scopes_config(config)
+    action = getattr(args, "project_action", None)
+    if action == "set":
+        project_id = normalize_scope_id(
+            str(getattr(args, "project_id", "") or "").strip(),
+            fallback="",
+        )
+        if not project_id:
+            print("\n  Project id cannot be empty.\n")
+            return
+        scopes["project_id"] = project_id
+        save_config(config)
+        print(f"\n  ✓ Active Project Memory: {project_id}")
+        print("  Start a new session for the prompt snapshot to include it.\n")
+        return
+    current = scopes.get("project_id") or "(none)"
+    print(f"\n  Active Project Memory: {current}\n")
+
+
 def cmd_status(args) -> None:
     """Show current memory provider config."""
     from hermes_cli.config import load_config
@@ -399,6 +480,27 @@ def cmd_status(args) -> None:
     print(f"\nMemory status\n" + "─" * 40)
     print(f"  Built-in:  always active")
     print(f"  Provider:  {provider_name or '(none — built-in only)'}")
+
+    try:
+        store = _scoped_store_from_config(config)
+        store.load_from_disk()
+        scoped = store.status()
+        print(f"\nScoped memory")
+        print(f"  Enabled:   {'yes' if scoped['enabled'] else 'no'}")
+        print(f"  Project:   {scoped['project_id'] or '(none)'}")
+        print(f"  User:      {scoped['user_id']}")
+        print(f"  Root:      {scoped['root']}")
+        print(f"  Core:      {scoped['core_path']}")
+        print(f"  Team:      {scoped['team_path']}")
+        print(f"  Candidates:{scoped['candidate_count']}")
+        if scoped["loaded_files"]:
+            print("  Loaded:")
+            for path in scoped["loaded_files"]:
+                print(f"    • {path}")
+        elif scoped["enabled"]:
+            print("  Loaded:    (no scoped summary files found)")
+    except Exception as exc:
+        print(f"\nScoped memory: status unavailable ({exc})")
 
     if provider_name:
         provider_config = mem_config.get(provider_name, {})
@@ -461,5 +563,9 @@ def memory_command(args) -> None:
             cmd_setup(args)
     elif sub == "status":
         cmd_status(args)
+    elif sub == "init-scopes":
+        cmd_init_scopes(args)
+    elif sub == "project":
+        cmd_project(args)
     else:
         cmd_status(args)

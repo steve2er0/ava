@@ -23,6 +23,40 @@ Both are stored in `~/.hermes/memories/` and are injected into the system prompt
 Character limits keep memory focused. When memory is full, the agent consolidates or replaces entries to make room for new information.
 :::
 
+## Scoped Memory
+
+AVA also supports filesystem-backed scoped memory so one AVA engine can serve
+many users without becoming one shared personality.
+
+Scopes load in this priority order:
+
+1. Compliance rules
+2. AVA Core
+3. Project Memory
+4. Team Memory
+5. User Memory
+6. Session context
+
+V1 uses small Markdown summaries by default. Team Memory is governed: AVA can
+write candidate knowledge for review, but it does not directly edit approved
+Team Memory.
+
+```bash
+ava memory init-scopes --project SLS
+ava memory project set SLS
+ava memory status
+```
+
+The default scoped layout is under `~/.ava/scoped_memory/`:
+
+| Scope | Default location | Write policy |
+|-------|------------------|--------------|
+| AVA Core | bundled `ava_core/` | Shared engine guidance |
+| Team | `team_memory/approved/` and `team_memory/candidates/` | Approved is human-reviewed; AVA writes candidates only |
+| Project | `projects/<project_id>/` | Project-specific facts and validation history |
+| User | `users/<user_id>/` | Personal preferences, expertise, and workflows |
+| Session | current conversation/session state | Temporary |
+
 ## How Memory Appears in the System Prompt
 
 At the start of every session, memory entries are loaded from disk and rendered into the system prompt as a frozen block:

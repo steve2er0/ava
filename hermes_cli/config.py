@@ -1545,6 +1545,19 @@ DEFAULT_CONFIG = {
         # "hindsight", "holographic", "retaindb", "byterover".
         # Only ONE external provider is allowed at a time.
         "provider": "",
+        "scopes": {
+            "enabled": True,
+            "root": "",             # empty = <AVA_HOME>/scoped_memory
+            "core_path": "",        # empty = bundled/repo ava_core
+            "team_path": "",        # empty = <root>/team_memory
+            "projects_path": "",    # empty = <root>/projects
+            "users_path": "",       # empty = <root>/users
+            "project_id": "",       # explicit active project; no cwd inference
+            "user_id": "",          # empty = platform user, OS user, or default
+            "load_mode": "summaries",
+            "summary_char_limit": 3000,
+            "total_char_limit": 12000,
+        },
     },
 
     # Subagent delegation - override the provider:model used by delegate_task
