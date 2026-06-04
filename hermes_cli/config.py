@@ -940,6 +940,10 @@ DEFAULT_CONFIG = {
         # to an external search provider. This is independent of general
         # command approval mode and default-on because data leaves the machine.
         "require_search_approval": True,
+        # Require explicit user approval before terminal commands that look
+        # like network egress (curl, git fetch/push, package installs, ssh,
+        # etc.) run. This is independent of general command approval mode.
+        "require_terminal_network_approval": True,
     },
 
     "browser": {

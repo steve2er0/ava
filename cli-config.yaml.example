@@ -308,13 +308,16 @@ prompt_caching:
 # Web tools are opt-in via `ava tools enable search` or `ava tools enable web`.
 # When enabled, web_search asks for approval before sending query text to an
 # external search provider. This gate is independent of general command
-# approval settings; keep it true unless the profile is intentionally trusted
-# to make unattended searches.
+# approval settings. Terminal network approval similarly asks before commands
+# like curl, git fetch/push, package installs, ssh/scp, and registry access
+# can send data out. Keep both true unless the profile is intentionally
+# trusted to make unattended network calls.
 web:
   backend: ""                 # shared fallback for search + extract
   search_backend: ""          # e.g. brave-free, searxng, ddgs, tavily, exa
   extract_backend: ""         # e.g. tavily, exa, firecrawl, parallel
   require_search_approval: true
+  require_terminal_network_approval: true
 
 # =============================================================================
 # Auxiliary Models (Advanced — Experimental)

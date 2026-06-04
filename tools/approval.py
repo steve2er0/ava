@@ -1204,34 +1204,63 @@ def check_all_command_guards(command: str, env_type: str,
     a gateway force=True replay from bypassing one check when only the
     other was shown to the user.
     """
-    # Skip containers for both checks
-    if env_type in {"docker", "singularity", "modal", "daytona"}:
+    isolated_env = env_type in {"docker", "singularity", "modal", "daytona"}
+
+    session_key = get_current_session_key()
+    network_warning = None
+    if _terminal_network_approval_required():
+        is_network, operations, destinations = detect_terminal_network_command(command)
+        if is_network:
+            network_key = _terminal_network_approval_key(
+                command, destinations, operations
+            )
+            if not is_approved(session_key, network_key):
+                network_warning = (
+                    network_key,
+                    _terminal_network_approval_description(destinations),
+                    "network",
+                    operations,
+                    destinations,
+                )
+
+    # Container/cloud backends are isolated for host-file safety, but network
+    # egress can still send data out. Keep the network gate active there.
+    if isolated_env and network_warning is None:
         return {"approved": True, "message": None}
 
     # Hardline floor: unconditional block for catastrophic commands
     # (rm -rf /, mkfs, dd to raw device, shutdown/reboot, fork bomb,
     # kill -1). Applies BEFORE yolo / mode=off / cron approve-mode so
     # no session-level setting can bypass it.
-    is_hardline, hardline_desc = detect_hardline_command(command)
-    if is_hardline:
-        logger.warning("Hardline block: %s (command: %s)", hardline_desc, command[:200])
-        return _hardline_block_result(hardline_desc)
+    if not isolated_env:
+        is_hardline, hardline_desc = detect_hardline_command(command)
+        if is_hardline:
+            logger.warning("Hardline block: %s (command: %s)", hardline_desc, command[:200])
+            return _hardline_block_result(hardline_desc)
 
     # == Sudo stdin guard ==
     # Like the hardline floor above, this is unconditional: there is never a
     # legitimate reason for the agent to pipe passwords to sudo -S when no
     # SUDO_PASSWORD has been configured.  This must fire BEFORE the yolo
     # check so even yolo/smart approval/mode=off cannot bypass it.
-    is_sudo_guess, sudo_guess_desc = _check_sudo_stdin_guard(command)
-    if is_sudo_guess:
-        logger.warning("Sudo stdin guard block: %s (command: %s)",
-                       sudo_guess_desc, command[:200])
-        return _sudo_stdin_block_result(sudo_guess_desc)
+    if not isolated_env:
+        is_sudo_guess, sudo_guess_desc = _check_sudo_stdin_guard(command)
+        if is_sudo_guess:
+            logger.warning("Sudo stdin guard block: %s (command: %s)",
+                           sudo_guess_desc, command[:200])
+            return _sudo_stdin_block_result(sudo_guess_desc)
 
-    # --yolo or approvals.mode=off: bypass all approval prompts.
-    # Gateway /yolo is session-scoped; CLI --yolo remains process-scoped.
+    # --yolo or approvals.mode=off: bypass destructive-command prompts.
+    # Network egress approval is independent of general command approval mode,
+    # matching web_search approval. A network warning therefore keeps flowing
+    # to the approval path unless explicitly disabled by web config.
     approval_mode = _get_approval_mode()
-    if _YOLO_MODE_FROZEN or is_current_session_yolo_enabled() or approval_mode == "off":
+    bypass_command_approvals = (
+        _YOLO_MODE_FROZEN
+        or is_current_session_yolo_enabled()
+        or approval_mode == "off"
+    )
+    if bypass_command_approvals and network_warning is None:
         return {"approved": True, "message": None}
 
     is_cli = env_var_enabled("HERMES_INTERACTIVE")
@@ -1244,6 +1273,21 @@ def check_all_command_guards(command: str, env_type: str,
         # Cron sessions: respect cron_mode config
         if env_var_enabled("HERMES_CRON_SESSION"):
             if _get_cron_approval_mode() == "deny":
+                if network_warning is not None:
+                    return {
+                        "approved": False,
+                        "message": (
+                            "BLOCKED: terminal command would send data to the "
+                            "network, but cron jobs run without a user present "
+                            "to approve outbound data. Use a non-networked "
+                            "approach, or set approvals.cron_mode: approve "
+                            "only for a trusted cron profile."
+                        ),
+                        "pattern_key": network_warning[0],
+                        "description": network_warning[1],
+                        "outcome": "blocked",
+                        "user_consent": False,
+                    }
                 # Run detection to get a description for the block message
                 is_dangerous, _pk, description = detect_dangerous_command(command)
                 if is_dangerous:
@@ -1257,6 +1301,30 @@ def check_all_command_guards(command: str, env_type: str,
                             "approvals.cron_mode: approve in config.yaml."
                         ),
                     }
+        if network_warning is not None:
+            logger.warning(
+                "BLOCKED terminal network command in non-interactive "
+                "non-gateway context: command=%r destinations=%r. Set "
+                "web.require_terminal_network_approval: false only for "
+                "trusted unattended profiles.",
+                command[:200],
+                network_warning[4],
+            )
+            return {
+                "approved": False,
+                "message": (
+                    "BLOCKED: terminal command would send data to the network, "
+                    "but no interactive approval surface is available. Do NOT "
+                    "retry or rephrase the command to bypass this decision. "
+                    "Use the CLI or gateway so the user can approve it, or set "
+                    "web.require_terminal_network_approval: false only for a "
+                    "trusted unattended profile."
+                ),
+                "pattern_key": network_warning[0],
+                "description": network_warning[1],
+                "outcome": "blocked",
+                "user_consent": False,
+            }
         return {"approved": True, "message": None}
 
     # --- Phase 1: Gather findings from both checks ---
@@ -1264,21 +1332,30 @@ def check_all_command_guards(command: str, env_type: str,
     # Tirith check — wrapper guarantees no raise for expected failures.
     # Only catch ImportError (module not installed).
     tirith_result = {"action": "allow", "findings": [], "summary": ""}
-    try:
-        from tools.tirith_security import check_command_security
-        tirith_result = check_command_security(command)
-    except ImportError:
-        pass  # tirith module not installed — allow
+    if not isolated_env and not bypass_command_approvals:
+        try:
+            from tools.tirith_security import check_command_security
+            tirith_result = check_command_security(command)
+        except ImportError:
+            pass  # tirith module not installed — allow
 
     # Dangerous command check (detection only, no approval)
-    is_dangerous, pattern_key, description = detect_dangerous_command(command)
+    if not isolated_env and not bypass_command_approvals:
+        is_dangerous, pattern_key, description = detect_dangerous_command(command)
+    else:
+        is_dangerous, pattern_key, description = False, None, None
 
     # --- Phase 2: Decide ---
 
     # Collect warnings that need approval
-    warnings = []  # list of (pattern_key, description, is_tirith)
+    warnings = []  # list of (pattern_key, description, kind)
+    network_operations = []
+    network_destinations = []
 
-    session_key = get_current_session_key()
+    if network_warning is not None:
+        warnings.append((network_warning[0], network_warning[1], "network"))
+        network_operations = network_warning[3]
+        network_destinations = network_warning[4]
 
     # Tirith block/warn → approvable warning with rich findings.
     # Previously, tirith "block" was a hard block with no approval prompt.
@@ -1290,11 +1367,11 @@ def check_all_command_guards(command: str, env_type: str,
         tirith_key = f"tirith:{rule_id}"
         tirith_desc = _format_tirith_description(tirith_result)
         if not is_approved(session_key, tirith_key):
-            warnings.append((tirith_key, tirith_desc, True))
+            warnings.append((tirith_key, tirith_desc, "tirith"))
 
     if is_dangerous:
         if not is_approved(session_key, pattern_key):
-            warnings.append((pattern_key, description, False))
+            warnings.append((pattern_key, description, "dangerous"))
 
     # Nothing to warn about
     if not warnings:
@@ -1304,12 +1381,13 @@ def check_all_command_guards(command: str, env_type: str,
     # When approvals.mode=smart, ask the aux LLM before prompting the user.
     # Inspired by OpenAI Codex's Smart Approvals guardian subagent
     # (openai/codex#13860).
-    if approval_mode == "smart":
+    has_network = any(kind == "network" for _, _, kind in warnings)
+    if approval_mode == "smart" and not has_network:
         combined_desc_for_llm = "; ".join(desc for _, desc, _ in warnings)
         verdict = _smart_approve(command, combined_desc_for_llm)
         if verdict == "approve":
             # Auto-approve and grant session-level approval for these patterns
-            for key, _, _ in warnings:
+            for key, _, _kind in warnings:
                 approve_session(session_key, key)
             logger.debug("Smart approval: auto-approved '%s' (%s)",
                          command[:60], combined_desc_for_llm)
@@ -1331,8 +1409,15 @@ def check_all_command_guards(command: str, env_type: str,
     # Combine descriptions for a single approval prompt
     combined_desc = "; ".join(desc for _, desc, _ in warnings)
     primary_key = warnings[0][0]
-    all_keys = [key for key, _, _ in warnings]
-    has_tirith = any(is_t for _, _, is_t in warnings)
+    all_keys = [key for key, _, _kind in warnings]
+    allow_permanent = not any(kind in {"tirith", "network"} for _, _, kind in warnings)
+    approval_command = command
+    if has_network:
+        approval_command = _terminal_network_approval_payload(
+            command,
+            network_destinations,
+            network_operations,
+        )
 
     # Gateway/async approval — block the agent thread until the user
     # responds with /approve or /deny, mirroring the CLI's synchronous
@@ -1349,10 +1434,12 @@ def check_all_command_guards(command: str, env_type: str,
             # heartbeat wait loop is shared with check_execute_code_guard via
             # _await_gateway_decision().
             approval_data = {
-                "command": command,
+                "kind": "terminal_network" if has_network else "terminal",
+                "command": approval_command,
                 "pattern_key": primary_key,
                 "pattern_keys": all_keys,
                 "description": combined_desc,
+                "allow_permanent": allow_permanent,
             }
             decision = _await_gateway_decision(
                 session_key, notify_cb, approval_data, surface="gateway"
@@ -1399,8 +1486,8 @@ def check_all_command_guards(command: str, env_type: str,
                 }
 
             # User approved — persist based on scope (same logic as CLI)
-            for key, _, is_tirith in warnings:
-                if choice == "session" or (choice == "always" and is_tirith):
+            for key, _, kind in warnings:
+                if choice == "session" or (choice == "always" and kind in {"tirith", "network"}):
                     approve_session(session_key, key)
                 elif choice == "always":
                     approve_session(session_key, key)
@@ -1415,20 +1502,22 @@ def check_all_command_guards(command: str, env_type: str,
         # Fallback: no gateway callback registered (e.g. cron, batch).
         # Return approval_required for backward compat.
         submit_pending(session_key, {
-            "command": command,
+            "kind": "terminal_network" if has_network else "terminal",
+            "command": approval_command,
             "pattern_key": primary_key,
             "pattern_keys": all_keys,
             "description": combined_desc,
+            "allow_permanent": allow_permanent,
         })
         return {
             "approved": False,
             "pattern_key": primary_key,
             "status": "pending_approval",
             "approval_pending": True,
-            "command": command,
+            "command": approval_command,
             "description": combined_desc,
             "message": (
-                f"⚠️ {combined_desc}. Asking the user for approval.\n\n**Command:**\n```\n{command}\n```"
+                f"⚠️ {combined_desc}. Asking the user for approval.\n\n**Command:**\n```\n{approval_command}\n```"
             ),
         }
 
@@ -1436,19 +1525,19 @@ def check_all_command_guards(command: str, env_type: str,
     # Hide [a]lways when any tirith warning is present
     _fire_approval_hook(
         "pre_approval_request",
-        command=command,
+        command=approval_command,
         description=combined_desc,
         pattern_key=primary_key,
         pattern_keys=list(all_keys),
         session_key=session_key,
         surface="cli",
     )
-    choice = prompt_dangerous_approval(command, combined_desc,
-                                       allow_permanent=not has_tirith,
+    choice = prompt_dangerous_approval(approval_command, combined_desc,
+                                       allow_permanent=allow_permanent,
                                        approval_callback=approval_callback)
     _fire_approval_hook(
         "post_approval_response",
-        command=command,
+        command=approval_command,
         description=combined_desc,
         pattern_key=primary_key,
         pattern_keys=list(all_keys),
@@ -1475,9 +1564,9 @@ def check_all_command_guards(command: str, env_type: str,
         }
 
     # Persist approval for each warning individually
-    for key, _, is_tirith in warnings:
-        if choice == "session" or (choice == "always" and is_tirith):
-            # tirith: session only (no permanent broad allowlisting)
+    for key, _, kind in warnings:
+        if choice == "session" or (choice == "always" and kind in {"tirith", "network"}):
+            # tirith/network: session only (no permanent broad allowlisting)
             approve_session(session_key, key)
         elif choice == "always":
             # dangerous patterns: permanent allowed
@@ -1682,6 +1771,259 @@ def _web_search_approval_required() -> bool:
         if normalized in {"1", "true", "yes", "on"}:
             return True
     return True
+
+
+_TERMINAL_NETWORK_PATTERNS = [
+    (_CMDPOS + r'(?:curl|wget|aria2c|http|https)\b', "HTTP client"),
+    (_CMDPOS + r'git\s+(?:clone|fetch|pull|push|ls-remote|submodule\s+update)\b', "git remote operation"),
+    (_CMDPOS + r'(?:ssh|scp|sftp|rsync|ftp|lftp|telnet)\b', "remote shell/file transfer"),
+    (_CMDPOS + r'(?:nc|ncat|netcat)\b', "raw network client"),
+    (_CMDPOS + r'(?:ping|traceroute|dig|nslookup)\b', "network diagnostic"),
+    (_CMDPOS + r'openssl\s+s_client\b', "TLS client"),
+    (_CMDPOS + r'(?:pip|pip3)\s+(?:install|download|index|search|wheel)\b', "Python package index"),
+    (_CMDPOS + r'python[23]?\s+-m\s+pip\s+(?:install|download|index|search|wheel)\b', "Python package index"),
+    (_CMDPOS + r'uv\s+(?:sync|add|pip|tool\s+install|python\s+install)\b', "Python package/index operation"),
+    (_CMDPOS + r'(?:npm|pnpm|yarn)\s+(?:install|add|update|publish|login|view|info)\b', "JavaScript package registry"),
+    (_CMDPOS + r'(?:brew|apt|apt-get|dnf|yum|apk)\s+(?:install|update|upgrade|search|add)\b', "system package repository"),
+    (_CMDPOS + r'docker\s+(?:pull|push|login)\b', "container registry"),
+    (_CMDPOS + r'docker\s+(?:build|buildx\s+build)\b[^\n;|&]*--pull\b', "container registry"),
+    (_CMDPOS + r'gh\s+(?:api|auth|repo|issue|pr|release|gist|workflow|run)\b', "GitHub API"),
+    (_CMDPOS + r'(?:python[23]?|node|ruby|perl|bash|sh|zsh|ksh)\b[^\n]*(?:https?|ftp|sftp|ssh|git)://', "scripted network request"),
+]
+
+_TERMINAL_NETWORK_PATTERNS_COMPILED = [
+    (re.compile(pattern, _RE_FLAGS), label)
+    for pattern, label in _TERMINAL_NETWORK_PATTERNS
+]
+
+_NETWORK_URL_RE = re.compile(
+    r'\b(?:https?|ftp|sftp|ssh|git|rsync)://[^\s\'"<>]+',
+    re.IGNORECASE,
+)
+_SCP_LIKE_RE = re.compile(
+    r'^(?:[A-Za-z0-9._%+-]+@)?'
+    r'([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\]):(?:~?/|/|[A-Za-z0-9._-])'
+)
+
+
+def _terminal_network_approval_required() -> bool:
+    """Return whether terminal commands that can reach the network need consent."""
+    try:
+        from hermes_cli.config import load_config
+
+        web_cfg = load_config().get("web", {}) or {}
+    except Exception as exc:
+        logger.warning("Failed to load terminal network approval config: %s", exc)
+        return True
+
+    raw = web_cfg.get(
+        "require_terminal_network_approval",
+        web_cfg.get("terminal_network_approval_required", True),
+    )
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+    return True
+
+
+def _clean_destination(value: str) -> str:
+    return str(value or "").strip().strip(" \t\r\n'\"`.,;)]}")
+
+
+def _shell_words(command: str) -> list[str]:
+    try:
+        import shlex
+
+        return shlex.split(command, comments=False, posix=True)
+    except Exception:
+        return re.findall(r'[^\s;&|()]+', command or "")
+
+
+def _looks_like_hostname(value: str) -> bool:
+    value = value.strip("[]")
+    if not value or value.startswith("-") or "/" in value:
+        return False
+    if value in {"localhost"}:
+        return True
+    if re.match(r'^(?:\d{1,3}\.){3}\d{1,3}$', value):
+        return True
+    if ":" in value and re.match(r'^[0-9A-Fa-f:.]+$', value):
+        return True
+    return bool(re.match(r'^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$', value))
+
+
+def _is_loopback_destination(value: str) -> bool:
+    cleaned = _clean_destination(value)
+    if not cleaned:
+        return False
+    host = cleaned
+    if "://" in cleaned:
+        try:
+            from urllib.parse import urlparse
+
+            host = urlparse(cleaned).hostname or cleaned
+        except Exception:
+            host = cleaned
+    host = host.strip("[]").lower()
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    if host == "::1":
+        return True
+    match = re.match(r'^127(?:\.\d{1,3}){3}$', host)
+    return bool(match)
+
+
+def _add_destination(destinations: list[str], value: str) -> None:
+    cleaned = _clean_destination(value)
+    if cleaned and cleaned not in destinations:
+        destinations.append(cleaned)
+
+
+def _terminal_network_destinations(command: str, operations: list[str]) -> list[str]:
+    destinations: list[str] = []
+    for match in _NETWORK_URL_RE.finditer(command or ""):
+        _add_destination(destinations, match.group(0))
+
+    words = _shell_words(command)
+    lower_words = [word.lower() for word in words]
+
+    for word in words:
+        if "://" in word:
+            continue
+        match = _SCP_LIKE_RE.match(word)
+        if match:
+            _add_destination(destinations, match.group(1))
+
+    host_commands = {
+        "ssh",
+        "scp",
+        "sftp",
+        "rsync",
+        "ftp",
+        "lftp",
+        "telnet",
+        "ping",
+        "traceroute",
+        "dig",
+        "nslookup",
+        "nc",
+        "ncat",
+        "netcat",
+    }
+    for index, word in enumerate(lower_words):
+        cmd = word.rsplit("/", 1)[-1]
+        if cmd not in host_commands:
+            continue
+        for arg in words[index + 1:index + 8]:
+            if not arg or arg.startswith("-"):
+                continue
+            if cmd in {"scp", "rsync"} and ":" in arg:
+                match = _SCP_LIKE_RE.match(arg)
+                if match:
+                    _add_destination(destinations, match.group(1))
+                    break
+            candidate = arg.rsplit("@", 1)[-1].split(":", 1)[0]
+            if _looks_like_hostname(candidate):
+                _add_destination(destinations, candidate)
+                break
+
+    operation_destinations = {
+        "git remote operation": "configured git remote",
+        "Python package index": "configured Python package index",
+        "Python package/index operation": "configured Python package/index",
+        "JavaScript package registry": "configured JavaScript package registry",
+        "system package repository": "configured system package repository",
+        "container registry": "configured container registry",
+        "GitHub API": "github.com",
+    }
+    for operation in operations:
+        fallback = operation_destinations.get(operation)
+        if fallback:
+            _add_destination(destinations, fallback)
+
+    return destinations
+
+
+def detect_terminal_network_command(command: str) -> tuple[bool, list[str], list[str]]:
+    """Detect terminal commands that can send data out over the network.
+
+    Returns ``(is_network, operations, destinations)``. Destinations are best
+    effort: URL and host arguments are shown when present, while package
+    managers and git operations fall back to their configured remote/index.
+    """
+    normalized = _normalize_command_for_detection(command)
+    operations: list[str] = []
+    for pattern_re, label in _TERMINAL_NETWORK_PATTERNS_COMPILED:
+        if pattern_re.search(normalized):
+            if label not in operations:
+                operations.append(label)
+
+    if not operations:
+        return (False, [], [])
+
+    destinations = _terminal_network_destinations(normalized, operations)
+    if destinations and all(_is_loopback_destination(dest) for dest in destinations):
+        return (False, [], [])
+    return (True, operations, destinations)
+
+
+def _terminal_network_approval_key(
+    command: str,
+    destinations: list[str],
+    operations: list[str],
+) -> str:
+    payload = {
+        "command": str(command or ""),
+        "destinations": list(destinations or []),
+        "operations": list(operations or []),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"terminal_network:{digest}"
+
+
+def _terminal_network_approval_description(destinations: list[str]) -> str:
+    if destinations:
+        shown = ", ".join(destinations[:4])
+        if len(destinations) > 4:
+            shown += f", +{len(destinations) - 4} more"
+        return (
+            "Outbound terminal network request. Review the command and "
+            f"detected destination(s): {shown}. Approve only if this data is "
+            "OK to leave this machine."
+        )
+    return (
+        "Outbound terminal network request. Review the command before "
+        "approving; AVA could not extract a concrete destination from the "
+        "shell text."
+    )
+
+
+def _terminal_network_approval_payload(
+    command: str,
+    destinations: list[str],
+    operations: list[str],
+) -> str:
+    payload = {
+        "tool": "terminal",
+        "network_egress": True,
+        "command": str(command or ""),
+        "destinations": list(destinations or []),
+        "matched_operations": list(operations or []),
+        "note": (
+            "This is the shell request AVA wants to run. Inline URLs, "
+            "headers, POST bodies, and file paths shown here may be sent "
+            "over the network; referenced file contents are not expanded in "
+            "this preview."
+        ),
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
 
 
 def _web_search_approval_key(

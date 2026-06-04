@@ -5,7 +5,6 @@ from unittest.mock import patch
 from rich.console import Console
 
 import hermes_cli.banner as banner
-import model_tools
 import tools.mcp_tool
 
 
@@ -26,20 +25,9 @@ def test_display_toolset_name_handles_empty():
     assert banner._display_toolset_name(None) == "unknown"
 
 
-def test_build_welcome_banner_uses_normalized_toolset_names():
-    """Unavailable toolsets should not have '_tools' appended in banner output."""
+def test_build_welcome_banner_hides_unavailable_toolsets():
+    """The startup banner should only list tools actually available to the agent."""
     with (
-        patch.object(
-            model_tools,
-            "check_tool_availability",
-            return_value=(
-                ["web"],
-                [
-                    {"name": "homeassistant", "tools": ["ha_call_service"]},
-                    {"name": "honcho", "tools": ["honcho_conclude"]},
-                ],
-            ),
-        ),
         patch.object(banner, "get_available_skills", return_value={}),
         patch.object(banner, "get_update_result", return_value=None),
         patch.object(tools.mcp_tool, "get_mcp_status", return_value=[]),
@@ -64,12 +52,42 @@ def test_build_welcome_banner_uses_normalized_toolset_names():
     output = console.export_text()
     assert "__ ___" in output
     assert "Nous Research" not in output
-    assert "homeassistant:" in output
-    assert "honcho:" in output
     assert "web:" in output
+    assert "file:" in output
+    assert "homeassistant:" not in output
+    assert "honcho:" not in output
+    assert "ha_call_service" not in output
+    assert "honcho_conclude" not in output
     assert "homeassistant_tools:" not in output
     assert "honcho_tools:" not in output
     assert "web_tools:" not in output
+
+
+def test_build_welcome_banner_shows_ava_skills_not_stock_skills():
+    """The startup banner should show AVA workflows instead of stock skill names."""
+    with (
+        patch.object(banner, "get_update_result", return_value=None),
+        patch.object(tools.mcp_tool, "get_mcp_status", return_value=[]),
+    ):
+        console = Console(
+            record=True, force_terminal=False, color_system=None, width=160
+        )
+        banner.build_welcome_banner(
+            console=console,
+            model="openai/codex",
+            cwd="/tmp/project",
+            tools=[{"function": {"name": "ava_run_shock_delta"}}],
+            get_toolset_for_tool=lambda name: "ava",
+        )
+
+    output = console.export_text()
+    assert "AVA Skills" in output
+    assert "shock_delta_v1" in output
+    assert "shock_response_spectrum" in output
+    assert "modal_frf" in output
+    assert "github-auth" not in output
+    assert "claude-code" not in output
+    assert "codebase-inspection" not in output
 
 
 def test_build_welcome_banner_title_is_hyperlinked_to_release():

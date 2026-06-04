@@ -1,5 +1,6 @@
 """Tests for check_all_command_guards() — combined tirith + dangerous command guard."""
 
+import json
 import os
 from unittest.mock import patch, MagicMock
 
@@ -171,7 +172,11 @@ class TestTirithWarnSafe:
         os.environ["HERMES_INTERACTIVE"] = "1"
         session_key = os.getenv("HERMES_SESSION_KEY", "default")
         approve_session(session_key, "tirith:shortened_url")
-        result = check_all_command_guards("curl https://bit.ly/abc", "local")
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={"web": {"require_terminal_network_approval": False}},
+        ):
+            result = check_all_command_guards("curl https://bit.ly/abc", "local")
         assert result["approved"] is True
 
     @patch(_TIRITH_PATCH,
@@ -180,8 +185,124 @@ class TestTirithWarnSafe:
                                        "shortened URL detected"))
     def test_warn_non_interactive_auto_allow(self, mock_tirith):
         # No HERMES_INTERACTIVE or HERMES_GATEWAY_SESSION set
-        result = check_all_command_guards("curl https://bit.ly/abc", "local")
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={"web": {"require_terminal_network_approval": False}},
+        ):
+            result = check_all_command_guards("curl https://bit.ly/abc", "local")
         assert result["approved"] is True
+
+
+# ---------------------------------------------------------------------------
+# terminal network egress approval
+# ---------------------------------------------------------------------------
+
+class TestTerminalNetworkApproval:
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_curl_prompts_with_json_egress_preview(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+        command = "curl -H 'X-Case: AVA' https://api.example.com/v1?q=shock"
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(command, "local", approval_callback=cb)
+
+        assert result["approved"] is True
+        cb.assert_called_once()
+        payload = json.loads(cb.call_args[0][0])
+        assert payload["tool"] == "terminal"
+        assert payload["network_egress"] is True
+        assert payload["command"] == command
+        assert payload["destinations"] == ["https://api.example.com/v1?q=shock"]
+        assert payload["matched_operations"] == ["HTTP client"]
+        assert cb.call_args[1]["allow_permanent"] is False
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_noninteractive_network_command_fails_closed(self, mock_tirith):
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards("curl https://example.com", "local")
+
+        assert result["approved"] is False
+        assert "no interactive approval surface is available" in result["message"]
+        assert result["user_consent"] is False
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_terminal_network_approval_can_be_disabled(self, mock_tirith):
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={"web": {"require_terminal_network_approval": False}},
+        ):
+            result = check_all_command_guards("curl https://example.com", "local")
+
+        assert result["approved"] is True
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_echo_url_does_not_trigger_terminal_network_approval(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="deny")
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(
+                "echo 'curl https://example.com'", "local", approval_callback=cb
+            )
+
+        assert result["approved"] is True
+        cb.assert_not_called()
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_loopback_curl_does_not_trigger_terminal_network_approval(self, mock_tirith):
+        cb = MagicMock(return_value="deny")
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(
+                "curl http://localhost:8000/health", "local", approval_callback=cb
+            )
+
+        assert result["approved"] is True
+        cb.assert_not_called()
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_git_pull_prompts_for_configured_remote(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards("git pull --ff-only", "local", approval_callback=cb)
+
+        assert result["approved"] is True
+        payload = json.loads(cb.call_args[0][0])
+        assert payload["destinations"] == ["configured git remote"]
+        assert payload["matched_operations"] == ["git remote operation"]
 
 
 # ---------------------------------------------------------------------------

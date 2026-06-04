@@ -71,27 +71,36 @@ HERMES_CADUCEUS = AVA_ASCII_ART
 
 
 # =========================================================================
-# Skills scanning
+# Startup skill display
 # =========================================================================
 
+_AVA_VIBROACOUSTIC_SKILLS: Dict[str, List[str]] = {
+    "modal": [
+        "modal_deck_builder",
+        "modal_frf",
+    ],
+    "nastran": [
+        "bdf_model_summary",
+        "op2_inspection",
+    ],
+    "shock": [
+        "shock_delta_v1",
+        "shock_response_spectrum",
+    ],
+}
+
+
 def get_available_skills() -> Dict[str, List[str]]:
-    """Return skills grouped by category, filtered by platform and disabled state.
+    """Return AVA-owned skills grouped for startup/status displays.
 
-    Delegates to ``_find_all_skills()`` from ``tools/skills_tool`` which already
-    handles platform gating (``platforms:`` frontmatter) and respects the
-    user's ``skills.disabled`` config list.
+    AVA still has access to the underlying skill tooling, but the startup
+    banner should present the vibroacoustic workflows this fork owns instead
+    of advertising the bundled stock Hermes skill catalog.
     """
-    try:
-        from tools.skills_tool import _find_all_skills
-        all_skills = _find_all_skills()  # already filtered
-    except Exception:
-        return {}
-
-    skills_by_category: Dict[str, List[str]] = {}
-    for skill in all_skills:
-        category = skill.get("category") or "general"
-        skills_by_category.setdefault(category, []).append(skill["name"])
-    return skills_by_category
+    return {
+        category: list(skill_names)
+        for category, skill_names in _AVA_VIBROACOUSTIC_SKILLS.items()
+    }
 
 
 # =========================================================================
@@ -478,7 +487,6 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
         get_toolset_for_tool: Callable to map tool name -> toolset name.
         context_length: Model's context window size in tokens.
     """
-    from model_tools import check_tool_availability, TOOLSET_REQUIREMENTS
     from rich.panel import Panel
     from rich.table import Table
     if get_toolset_for_tool is None:
@@ -486,21 +494,6 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
 
     tools = tools or []
     enabled_toolsets = enabled_toolsets or []
-
-    _, unavailable_toolsets = check_tool_availability(quiet=True)
-    disabled_tools = set()
-    # Tools whose toolset has a check_fn are lazy-initialized (e.g. honcho,
-    # homeassistant) — they show as unavailable at banner time because the
-    # check hasn't run yet, but they aren't misconfigured.
-    lazy_tools = set()
-    for item in unavailable_toolsets:
-        toolset_name = item.get("name", "")
-        ts_req = TOOLSET_REQUIREMENTS.get(toolset_name, {})
-        tools_in_ts = item.get("tools", [])
-        if ts_req.get("check_fn"):
-            lazy_tools.update(tools_in_ts)
-        else:
-            disabled_tools.update(tools_in_ts)
 
     layout_table = Table.grid(padding=(0, 2))
     layout_table.add_column("left", justify="center")
@@ -544,15 +537,6 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
         toolset = _display_toolset_name(get_toolset_for_tool(tool_name) or "other")
         toolsets_dict.setdefault(toolset, []).append(tool_name)
 
-    for item in unavailable_toolsets:
-        toolset_id = item.get("id", item.get("name", "unknown"))
-        display_name = _display_toolset_name(toolset_id)
-        if display_name not in toolsets_dict:
-            toolsets_dict[display_name] = []
-        for tool_name in item.get("tools", []):
-            if tool_name not in toolsets_dict[display_name]:
-                toolsets_dict[display_name].append(tool_name)
-
     sorted_toolsets = sorted(toolsets_dict.keys())
     display_toolsets = sorted_toolsets[:8]
     remaining_toolsets = len(sorted_toolsets) - 8
@@ -561,12 +545,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
         tool_names = toolsets_dict[toolset]
         colored_names = []
         for name in sorted(tool_names):
-            if name in disabled_tools:
-                colored_names.append(f"[red]{name}[/]")
-            elif name in lazy_tools:
-                colored_names.append(f"[yellow]{name}[/]")
-            else:
-                colored_names.append(f"[{text}]{name}[/]")
+            colored_names.append(f"[{text}]{name}[/]")
 
         tools_str = ", ".join(colored_names)
         if len(", ".join(sorted(tool_names))) > 45:
@@ -582,10 +561,6 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
             for name in short_names:
                 if name == "...":
                     colored_names.append("[dim]...[/]")
-                elif name in disabled_tools:
-                    colored_names.append(f"[red]{name}[/]")
-                elif name in lazy_tools:
-                    colored_names.append(f"[yellow]{name}[/]")
                 else:
                     colored_names.append(f"[{text}]{name}[/]")
             tools_str = ", ".join(colored_names)
@@ -618,7 +593,7 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
                 )
 
     right_lines.append("")
-    right_lines.append(f"[bold {accent}]Available Skills[/]")
+    right_lines.append(f"[bold {accent}]AVA Skills[/]")
     skills_by_category = get_available_skills()
     total_skills = sum(len(s) for s in skills_by_category.values())
 
