@@ -245,7 +245,7 @@ class CodexAppServerSession:
             )
         self._client.initialize(
             client_name="hermes",
-            client_title="Hermes Agent",
+            client_title="AVA",
             client_version=_get_hermes_version(),
         )
         # Permission selection is intentionally NOT sent on thread/start.
@@ -841,6 +841,6 @@ def _get_hermes_version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("hermes-agent")
+        return version("ava-agent")
     except Exception:  # pragma: no cover
         return "0.0.0"

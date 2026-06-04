@@ -1,4 +1,4 @@
-"""``hermes debug`` debug tools for Hermes Agent.
+"""``ava debug`` debug tools for AVA.
 
 Currently supports:
     hermes debug share    Upload debug report (system info + logs) to a

@@ -220,7 +220,7 @@ def test_save_config_sets_owner_only_permissions(tmp_path):
 class TestMem0Defaults:
     """Ensure we don't break existing users' defaults."""
 
-    def test_default_user_id_hermes_user(self, monkeypatch, tmp_path):
+    def test_default_user_id_ava_user(self, monkeypatch, tmp_path):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         monkeypatch.delenv("MEM0_USER_ID", raising=False)
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -228,9 +228,9 @@ class TestMem0Defaults:
         provider = Mem0MemoryProvider()
         provider.initialize("test")
 
-        assert provider._user_id == "hermes-user"
+        assert provider._user_id == "ava-user"
 
-    def test_default_agent_id_hermes(self, monkeypatch, tmp_path):
+    def test_default_agent_id_ava(self, monkeypatch, tmp_path):
         monkeypatch.setenv("MEM0_API_KEY", "test-key")
         monkeypatch.delenv("MEM0_AGENT_ID", raising=False)
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -238,4 +238,4 @@ class TestMem0Defaults:
         provider = Mem0MemoryProvider()
         provider.initialize("test")
 
-        assert provider._agent_id == "hermes"
+        assert provider._agent_id == "ava"

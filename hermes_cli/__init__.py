@@ -1,5 +1,5 @@
 """
-Hermes CLI - Unified command-line interface for Hermes Agent.
+AVA CLI - Unified command-line interface for AVA.
 
 Provides subcommands for:
 - hermes chat          - Interactive chat (same as ./hermes)

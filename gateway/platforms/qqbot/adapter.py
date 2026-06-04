@@ -736,8 +736,8 @@ class QQAdapter(BasePlatformAdapter):
                 "shard": [0, 1],
                 "properties": {
                     "$os": "macOS",
-                    "$browser": "hermes-agent",
-                    "$device": "hermes-agent",
+                    "$browser": "ava-agent",
+                    "$device": "ava-agent",
                 },
             },
         }

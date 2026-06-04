@@ -1,5 +1,5 @@
 """
-Configuration management for Hermes Agent.
+Configuration management for AVA.
 
 Config files are stored in ~/.hermes/ for easy access:
 - ~/.hermes/config.yaml  - All settings (model, toolsets, terminal, etc.)
@@ -226,7 +226,7 @@ _EXTRA_ENV_KEYS = frozenset({
 import yaml
 
 from hermes_cli.colors import Colors, color
-from hermes_cli.default_soul import DEFAULT_SOUL_MD
+from hermes_cli.default_soul import DEFAULT_SOUL_MD, LEGACY_HERMES_SOUL_MD
 
 
 # =============================================================================
@@ -403,11 +403,11 @@ def recommended_update_command() -> str:
 _DOCKER_UPDATE_MESSAGE = """\
 ✗ ``hermes update`` doesn't apply inside the Docker container.
 
-Hermes Agent runs as a published image (nousresearch/hermes-agent), not a
+AVA runs as a published image (steve2er0/ava), not a
 git checkout — the container has no working tree to pull into.  Update by
 pulling a fresh image and restarting your container instead:
 
-  docker pull nousresearch/hermes-agent:latest
+  docker pull ghcr.io/steve2er0/ava:latest
   # then restart whatever started the container, e.g.:
   docker compose up -d --force-recreate hermes-agent
   # or, for ad-hoc runs, exit the current container and `docker run` again
@@ -674,9 +674,16 @@ def _secure_file(path):
 
 
 def _ensure_default_soul_md(home: Path) -> None:
-    """Seed a default SOUL.md into HERMES_HOME if the user doesn't have one yet."""
+    """Seed a default SOUL.md, or migrate the exact old Hermes default."""
     soul_path = home / "SOUL.md"
     if soul_path.exists():
+        try:
+            existing = soul_path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeDecodeError):
+            return
+        if existing == LEGACY_HERMES_SOUL_MD:
+            soul_path.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
+            _secure_file(soul_path)
         return
     soul_path.write_text(DEFAULT_SOUL_MD, encoding="utf-8")
     _secure_file(soul_path)
@@ -1758,7 +1765,7 @@ DEFAULT_CONFIG = {
     # WhatsApp platform settings (gateway mode)
     "whatsapp": {
         # Reply prefix prepended to every outgoing WhatsApp message.
-        # Default (None) uses the built-in "⚕ *Hermes Agent*" header.
+        # Default (None) uses the built-in "⚕ *AVA*" header.
         # Set to "" (empty string) to disable the header entirely.
         # Supports \n for newlines, e.g. "🤖 *My Bot*\n──────\n"
     },

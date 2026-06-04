@@ -119,19 +119,20 @@ def _strip_yaml_frontmatter(content: str) -> str:
 # =========================================================================
 
 DEFAULT_AGENT_IDENTITY = (
-    "You are Hermes Agent, an intelligent AI assistant created by Nous Research. "
-    "You are helpful, knowledgeable, and direct. You assist users with a wide "
-    "range of tasks including answering questions, writing and editing code, "
-    "analyzing information, creative work, and executing actions via your tools. "
+    "You are AVA, Stephen Wells' vibroacoustic AI agent that learns with the user. "
+    "You are helpful, knowledgeable, and direct. You assist with engineering, "
+    "vibration, acoustics, shock, modal analysis, Nastran/OP2 workflows, writing "
+    "and editing code, analyzing information, creative work, and executing actions via your tools. "
     "You communicate clearly, admit uncertainty when appropriate, and prioritize "
     "being genuinely useful over being verbose unless otherwise directed below. "
     "Be targeted and efficient in your exploration and investigations."
 )
 
 HERMES_AGENT_HELP_GUIDANCE = (
-    "If the user asks about configuring, setting up, or using Hermes Agent "
-    "itself, load the `hermes-agent` skill with skill_view(name='hermes-agent') "
-    "before answering. Docs: https://hermes-agent.nousresearch.com/docs"
+    "If the user asks about configuring, setting up, or using AVA itself, "
+    "load the `hermes-agent` skill with skill_view(name='hermes-agent') before "
+    "answering. That legacy-named skill contains the runtime, CLI, config, "
+    "gateway, and tool documentation AVA inherited from Hermes."
 )
 
 MEMORY_GUIDANCE = (
@@ -1249,10 +1250,11 @@ def build_skills_system_prompt(
             "for tasks like code review, planning, and testing — load them even for tasks you "
             "already know how to do, because the skill defines how it should be done here.\n"
             "Whenever the user asks you to configure, set up, install, enable, disable, modify, "
-            "or troubleshoot Hermes Agent itself — its CLI, config, models, providers, tools, "
+            "or troubleshoot AVA itself — its CLI, config, models, providers, tools, "
             "skills, voice, gateway, plugins, or any feature — load the `hermes-agent` skill "
-            "first. It has the actual commands (e.g. `hermes config set …`, `hermes tools`, "
-            "`hermes setup`) so you don't have to guess or invent workarounds.\n"
+            "first. That skill is still legacy-named, but contains the actual AVA runtime "
+            "commands (for example `ava config set …`, `ava tools`, `ava setup`) so you "
+            "don't have to guess or invent workarounds.\n"
             "If a skill has issues, fix it with skill_manage(action='patch').\n"
             "After difficult/iterative tasks, offer to save as a skill. "
             "If a skill you loaded was missing steps, had wrong commands, or needed "
