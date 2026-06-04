@@ -944,6 +944,11 @@ DEFAULT_CONFIG = {
         # like network egress (curl, git fetch/push, package installs, ssh,
         # etc.) run. This is independent of general command approval mode.
         "require_terminal_network_approval": True,
+        # AVA defaults broad search to a vibroacoustic profile. Ambiguous
+        # terms like "shock" and "SRS" are expanded and filtered so generic
+        # search providers favor mechanical/structural results over medical
+        # shock or software-requirements-specification results.
+        "search_profile": "vibroacoustic",
     },
 
     "browser": {
@@ -2157,6 +2162,10 @@ DEFAULT_CONFIG = {
 
     # ``hermes update`` behaviour.
     "updates": {
+        # Background startup update checks can reach GitHub or PyPI without
+        # an explicit user command. AVA defaults this off; run `ava update`
+        # manually when you want to check/update, or opt in here.
+        "check_on_startup": False,
         # Run a full ``hermes backup``-style zip of HERMES_HOME before every
         # ``hermes update``.  Backups land in ``<HERMES_HOME>/backups/`` and
         # can be restored with ``hermes import <path>``.  Off by default —

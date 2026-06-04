@@ -513,6 +513,67 @@ class TestWebSearchSchema:
         assert result == {"success": True, "data": {"web": []}}
         fake_search.assert_called_once_with("docs", 100)
 
+    def test_vibroacoustic_profile_rewrites_ambiguous_shock_srs_query(self):
+        import tools.web_tools
+
+        fake_search = MagicMock(return_value={"success": True, "data": {"web": []}})
+        fake_provider = MagicMock(
+            name="BraveWebSearchProvider",
+            supports_search=MagicMock(return_value=True),
+        )
+        fake_provider.search = fake_search
+        fake_provider.name = "brave-free"
+
+        with patch("tools.web_tools._get_search_backend", return_value="brave-free"), \
+             patch("agent.web_search_registry.get_provider", return_value=fake_provider), \
+             patch("hermes_cli.config.load_config", return_value={
+                 "web": {
+                     "require_search_approval": False,
+                     "search_profile": "vibroacoustic",
+                 }
+             }), \
+             patch("tools.interrupt.is_interrupted", return_value=False), \
+             patch.object(tools.web_tools._debug, "log_call"), \
+             patch.object(tools.web_tools._debug, "save"):
+            result = json.loads(tools.web_tools.web_search_tool("shock SRS qualification", limit=3))
+
+        assert result == {"success": True, "data": {"web": []}}
+        outbound_query = fake_search.call_args.args[0]
+        assert "shock SRS qualification" in outbound_query
+        assert '"shock response spectrum"' in outbound_query
+        assert '"mechanical shock"' in outbound_query
+        assert '"structural dynamics"' in outbound_query
+        assert "-medical" in outbound_query
+        assert '-"software requirements specification"' in outbound_query
+        fake_search.assert_called_once_with(outbound_query, 3)
+
+    def test_vibroacoustic_profile_off_leaves_ambiguous_query_raw(self):
+        import tools.web_tools
+
+        fake_search = MagicMock(return_value={"success": True, "data": {"web": []}})
+        fake_provider = MagicMock(
+            name="BraveWebSearchProvider",
+            supports_search=MagicMock(return_value=True),
+        )
+        fake_provider.search = fake_search
+        fake_provider.name = "brave-free"
+
+        with patch("tools.web_tools._get_search_backend", return_value="brave-free"), \
+             patch("agent.web_search_registry.get_provider", return_value=fake_provider), \
+             patch("hermes_cli.config.load_config", return_value={
+                 "web": {
+                     "require_search_approval": False,
+                     "search_profile": "none",
+                 }
+             }), \
+             patch("tools.interrupt.is_interrupted", return_value=False), \
+             patch.object(tools.web_tools._debug, "log_call"), \
+             patch.object(tools.web_tools._debug, "save"):
+            result = json.loads(tools.web_tools.web_search_tool("shock SRS qualification", limit=3))
+
+        assert result == {"success": True, "data": {"web": []}}
+        fake_search.assert_called_once_with("shock SRS qualification", 3)
+
 
 class TestWebSearchApproval:
     """web_search must obtain consent before sending query text off-host."""
@@ -586,6 +647,43 @@ class TestWebSearchApproval:
 
         assert result == {"success": True, "data": {"web": []}}
         fake_search.assert_called_once_with("public docs", 3)
+
+    def test_approval_shows_profiled_outbound_query(self, monkeypatch):
+        import tools.web_tools
+        from tools.terminal_tool import set_approval_callback
+        import tools.approval as approval_module
+
+        fake_provider, fake_search = self._fake_provider()
+        outbound_payloads = []
+
+        def approve_once(command, description, **kwargs):
+            outbound_payloads.append(json.loads(command))
+            return "once"
+
+        monkeypatch.setenv("HERMES_INTERACTIVE", "1")
+        monkeypatch.delenv("HERMES_CRON_SESSION", raising=False)
+        set_approval_callback(approve_once)
+        approval_module.clear_session("default")
+
+        patchers = self._patch_dispatch(tools.web_tools, fake_provider)
+        try:
+            with patch("hermes_cli.config.load_config", return_value={
+                "web": {
+                    "require_search_approval": True,
+                    "search_profile": "vibroacoustic",
+                },
+                "approvals": {"mode": "manual"},
+            }), patchers[0], patchers[1], patchers[2], patchers[3], patchers[4]:
+                result = json.loads(tools.web_tools.web_search_tool("shock SRS qualification", limit=3))
+        finally:
+            set_approval_callback(None)
+            approval_module.clear_session("default")
+
+        assert result == {"success": True, "data": {"web": []}}
+        assert outbound_payloads
+        assert outbound_payloads[0]["tool"] == "web_search"
+        assert '"shock response spectrum"' in outbound_payloads[0]["query"]
+        fake_search.assert_called_once_with(outbound_payloads[0]["query"], 3)
 
 
 class TestWebSearchErrorHandling:

@@ -318,6 +318,19 @@ web:
   extract_backend: ""         # e.g. tavily, exa, firecrawl, parallel
   require_search_approval: true
   require_terminal_network_approval: true
+  # AVA's default search profile expands ambiguous shock/SRS searches toward
+  # vibroacoustics and filters common medical/software-requirements collisions.
+  # Set to "none" for raw general-purpose search queries.
+  search_profile: vibroacoustic
+
+# =============================================================================
+# Updates
+# =============================================================================
+# Manual `ava update` / `ava update --check` commands still contact GitHub/PyPI
+# when you run them. This startup check is disabled by default so AVA does not
+# quietly reach out to GitHub or PyPI during launch.
+updates:
+  check_on_startup: false
 
 # =============================================================================
 # Auxiliary Models (Advanced — Experimental)

@@ -304,6 +304,103 @@ class TestTerminalNetworkApproval:
         assert payload["destinations"] == ["configured git remote"]
         assert payload["matched_operations"] == ["git remote operation"]
 
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_gh_search_prompts_for_github_api(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(
+                "gh search repos pyNastran srs", "local", approval_callback=cb
+            )
+
+        assert result["approved"] is True
+        payload = json.loads(cb.call_args[0][0])
+        assert payload["destinations"] == ["github.com"]
+        assert payload["matched_operations"] == ["GitHub API"]
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_pip_index_prompts_for_python_package_index(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(
+                "python -m pip index versions pyNastran", "local", approval_callback=cb
+            )
+
+        assert result["approved"] is True
+        payload = json.loads(cb.call_args[0][0])
+        assert payload["destinations"] == ["configured Python package index"]
+        assert payload["matched_operations"] == ["Python package index"]
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_python_urllib_heredoc_prompts_for_embedded_urls(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+        command = """python3 <<'PY'
+import urllib.request
+for url in (
+    "https://api.github.com/search/repositories?q=pyNastran+srs",
+    "https://pypi.org/pypi/pyyeti/json",
+):
+    urllib.request.urlopen(url, timeout=10)
+PY"""
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(command, "local", approval_callback=cb)
+
+        assert result["approved"] is True
+        payload = json.loads(cb.call_args[0][0])
+        assert "Python network client" in payload["matched_operations"]
+        assert payload["destinations"] == [
+            "https://api.github.com/search/repositories?q=pyNastran+srs",
+            "https://pypi.org/pypi/pyyeti/json",
+        ]
+
+    @patch(_TIRITH_PATCH, return_value=_tirith_result("allow"))
+    def test_python_requests_dynamic_url_prompts_without_concrete_destination(self, mock_tirith):
+        os.environ["HERMES_INTERACTIVE"] = "1"
+        cb = MagicMock(return_value="once")
+        command = """python3 <<'PY'
+import requests
+host = "api.github.com"
+url = "https://" + host + "/search/repositories"
+requests.get(url, params={"q": "SRS shock"})
+PY"""
+
+        with patch(
+            "hermes_cli.config.load_config",
+            return_value={
+                "web": {"require_terminal_network_approval": True},
+                "approvals": {"mode": "manual"},
+            },
+        ):
+            result = check_all_command_guards(command, "local", approval_callback=cb)
+
+        assert result["approved"] is True
+        payload = json.loads(cb.call_args[0][0])
+        assert payload["matched_operations"] == ["Python network client"]
+        assert payload["destinations"] == ["Python script network destination"]
+
 
 # ---------------------------------------------------------------------------
 # tirith warn + dangerous (combined)

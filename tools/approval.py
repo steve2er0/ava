@@ -1787,7 +1787,12 @@ _TERMINAL_NETWORK_PATTERNS = [
     (_CMDPOS + r'(?:brew|apt|apt-get|dnf|yum|apk)\s+(?:install|update|upgrade|search|add)\b', "system package repository"),
     (_CMDPOS + r'docker\s+(?:pull|push|login)\b', "container registry"),
     (_CMDPOS + r'docker\s+(?:build|buildx\s+build)\b[^\n;|&]*--pull\b', "container registry"),
-    (_CMDPOS + r'gh\s+(?:api|auth|repo|issue|pr|release|gist|workflow|run)\b', "GitHub API"),
+    (_CMDPOS + r'gh\s+(?:api|auth|repo|search|issue|pr|release|gist|workflow|run)\b', "GitHub API"),
+    (_CMDPOS + r'(?:pipx|uvx)\s+(?:install|run)\b', "Python package index"),
+    (_CMDPOS + r'(?:poetry|pdm)\s+(?:add|install|update|search|publish)\b', "Python package index"),
+    (_CMDPOS + r'(?:conda|mamba|micromamba)\s+(?:install|update|search|create)\b', "conda package repository"),
+    (_CMDPOS + r'(?:python[23]?|python)\b[\s\S]*(?:urllib\.request|urlopen\s*\(|requests\.(?:request|get|post|put|patch|delete|head)|httpx\.(?:request|get|post|put|patch|delete|head)|aiohttp\.ClientSession|urllib3\.)', "Python network client"),
+    (_CMDPOS + r'node\b[\s\S]*(?:fetch\s*\(|https?\.request|axios\.(?:request|get|post|put|patch|delete|head))', "JavaScript network client"),
     (_CMDPOS + r'(?:python[23]?|node|ruby|perl|bash|sh|zsh|ksh)\b[^\n]*(?:https?|ftp|sftp|ssh|git)://', "scripted network request"),
 ]
 
@@ -1936,6 +1941,9 @@ def _terminal_network_destinations(command: str, operations: list[str]) -> list[
         "git remote operation": "configured git remote",
         "Python package index": "configured Python package index",
         "Python package/index operation": "configured Python package/index",
+        "Python network client": "Python script network destination",
+        "JavaScript network client": "JavaScript script network destination",
+        "conda package repository": "configured conda package repository",
         "JavaScript package registry": "configured JavaScript package registry",
         "system package repository": "configured system package repository",
         "container registry": "configured container registry",
@@ -1943,7 +1951,10 @@ def _terminal_network_destinations(command: str, operations: list[str]) -> list[
     }
     for operation in operations:
         fallback = operation_destinations.get(operation)
-        if fallback:
+        if fallback and (
+            operation not in {"Python network client", "JavaScript network client"}
+            or not destinations
+        ):
             _add_destination(destinations, fallback)
 
     return destinations

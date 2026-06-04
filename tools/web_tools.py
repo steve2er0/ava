@@ -235,6 +235,76 @@ def _ddgs_package_importable() -> bool:
     except ImportError:
         return False
 
+
+def _get_search_profile() -> str:
+    """Return the configured web-search query profile."""
+    cfg = _load_web_config()
+    raw = cfg.get("search_profile", cfg.get("query_profile", "vibroacoustic"))
+    if isinstance(raw, bool):
+        return "vibroacoustic" if raw else ""
+    profile = str(raw or "").strip().lower()
+    if profile in {"0", "false", "no", "off", "none", "general", "raw"}:
+        return ""
+    return profile or "vibroacoustic"
+
+
+_AVA_AMBIGUOUS_SEARCH_RE = re.compile(r'\b(?:shock|srs)\b', re.IGNORECASE)
+_AVA_SEARCH_CONTEXT_RE = re.compile(
+    r'\b(?:'
+    r'vibro[\s-]?acoustic|shock response spectrum|mechanical shock|'
+    r'structural dynamics|random vibration|vibration|modal|nastran|femap|'
+    r'pyNastran|aerospace|acoustic|MIL-STD|NASA|SPL|PSD'
+    r')\b',
+    re.IGNORECASE,
+)
+_AVA_SEARCH_NOISE_FILTERS = [
+    "-medical",
+    "-clinical",
+    "-septic",
+    "-cardiogenic",
+    "-hypovolemic",
+    '-"software requirements specification"',
+    '-"software requirement specification"',
+]
+
+
+def _has_search_operator(query: str, operator: str) -> bool:
+    return re.search(rf'(^|\s){re.escape(operator)}', query, re.IGNORECASE) is not None
+
+
+def _apply_vibroacoustic_search_profile(query: str) -> str:
+    """Bias ambiguous AVA searches toward mechanical/vibroacoustic results."""
+    cleaned = str(query or "").strip()
+    if not cleaned or not _AVA_AMBIGUOUS_SEARCH_RE.search(cleaned):
+        return cleaned
+    if _has_search_operator(cleaned, "site:"):
+        return cleaned
+
+    additions: list[str] = []
+    if re.search(r'\bsrs\b', cleaned, re.IGNORECASE) and "shock response spectrum" not in cleaned.lower():
+        additions.append('"shock response spectrum"')
+    if re.search(r'\bshock\b', cleaned, re.IGNORECASE) and not _AVA_SEARCH_CONTEXT_RE.search(cleaned):
+        additions.extend(['"mechanical shock"', '"structural dynamics"'])
+    elif not _AVA_SEARCH_CONTEXT_RE.search(cleaned):
+        additions.append('"vibroacoustic"')
+
+    lowered = cleaned.lower()
+    for token in _AVA_SEARCH_NOISE_FILTERS:
+        if token.lower() not in lowered:
+            additions.append(token)
+
+    if not additions:
+        return cleaned
+    return " ".join([cleaned, *additions])
+
+
+def _prepare_search_query(query: str) -> str:
+    """Return the exact query to send to the configured search provider."""
+    cleaned = str(query or "").strip()
+    if _get_search_profile() == "vibroacoustic":
+        return _apply_vibroacoustic_search_profile(cleaned)
+    return cleaned
+
 # ─── Firecrawl Client ────────────────────────────────────────────────────────
 
 # ─── Firecrawl Client ────────────────────────────────────────────────────────
@@ -801,10 +871,12 @@ def web_search_tool(query: str, limit: int = 5) -> str:
     except (TypeError, ValueError):
         limit = 5
     limit = min(max(limit, 1), 100)
+    query_to_send = _prepare_search_query(query)
 
     debug_call_data = {
         "parameters": {
             "query": query,
+            "outbound_query": query_to_send,
             "limit": limit
         },
         "error": None,
@@ -856,7 +928,7 @@ def web_search_tool(query: str, limit: int = 5) -> str:
             from tools.approval import check_web_search_approval
 
             approval = check_web_search_approval(
-                query,
+                query_to_send,
                 limit,
                 backend=backend,
                 provider_name=getattr(provider, "name", "") or backend,
@@ -874,9 +946,9 @@ def web_search_tool(query: str, limit: int = 5) -> str:
 
             logger.info(
                 "Web search via %s: '%s' (limit: %d)",
-                provider.name, query, limit,
+                provider.name, query_to_send, limit,
             )
-            response_data = provider.search(query, limit)
+            response_data = provider.search(query_to_send, limit)
 
         debug_call_data["results_count"] = len(response_data.get("data", {}).get("web", []))
         result_json = json.dumps(response_data, indent=2, ensure_ascii=False)
@@ -1313,7 +1385,7 @@ from tools.registry import registry, tool_error
 
 WEB_SEARCH_SCHEMA = {
     "name": "web_search",
-    "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. Before the query is sent to the configured backend, Ava may show the exact outbound request to the user for approval. If the user denies approval, do not retry, rephrase, or route around that decision. The query is passed through to the configured backend, so operators such as site:domain, filetype:pdf, intitle:word, -term, and \"exact phrase\" may work when the backend supports them.",
+    "description": "Search the web for information. Returns up to 5 results by default with titles, URLs, and descriptions. Before the query is sent to the configured backend, Ava may show the exact outbound request to the user for approval. If the user denies approval, do not retry, rephrase, or route around that decision. In AVA's default vibroacoustic search profile, ambiguous shock/SRS queries may be expanded to favor mechanical shock, shock response spectrum, structural dynamics, and vibroacoustic results while filtering medical shock and software-requirements-specification noise. Operators such as site:domain, filetype:pdf, intitle:word, -term, and \"exact phrase\" may work when the backend supports them.",
     "parameters": {
         "type": "object",
         "properties": {

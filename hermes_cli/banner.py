@@ -261,6 +261,44 @@ def check_for_updates() -> Optional[int]:
     return behind
 
 
+def _truthy_config_value(value) -> bool:
+    """Return True for common truthy config/env values."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    normalized = str(value).strip().lower()
+    return normalized in {"1", "true", "yes", "on", "enabled"}
+
+
+def startup_update_check_enabled() -> bool:
+    """Return whether AVA may check GitHub/PyPI for updates at startup.
+
+    Manual update commands still perform their explicit network checks. This
+    gate only covers the background startup prefetch, which would otherwise
+    reach GitHub or PyPI without a user-visible request.
+    """
+    disable_env = os.getenv("AVA_DISABLE_STARTUP_UPDATE_CHECK") or os.getenv(
+        "HERMES_DISABLE_STARTUP_UPDATE_CHECK"
+    )
+    if disable_env is not None:
+        return not _truthy_config_value(disable_env)
+
+    enable_env = os.getenv("AVA_STARTUP_UPDATE_CHECK") or os.getenv(
+        "HERMES_STARTUP_UPDATE_CHECK"
+    )
+    if enable_env is not None:
+        return _truthy_config_value(enable_env)
+
+    try:
+        from hermes_cli.config import load_config
+
+        updates_cfg = load_config().get("updates", {}) or {}
+        return _truthy_config_value(updates_cfg.get("check_on_startup", False))
+    except Exception:
+        return False
+
+
 def _resolve_repo_dir() -> Optional[Path]:
     """Return the active Hermes git checkout, or None if this isn't a git install.
 
@@ -423,6 +461,12 @@ _update_check_done = threading.Event()
 
 def prefetch_update_check():
     """Kick off update check in a background daemon thread."""
+    global _update_result
+    if not startup_update_check_enabled():
+        _update_result = None
+        _update_check_done.set()
+        return
+
     def _run():
         global _update_result
         _update_result = check_for_updates()

@@ -139,7 +139,8 @@ def test_prefetch_non_blocking():
     banner._update_result = None
     banner._update_check_done = threading.Event()
 
-    with patch.object(banner, "check_for_updates", return_value=5):
+    with patch.object(banner, "startup_update_check_enabled", return_value=True), \
+         patch.object(banner, "check_for_updates", return_value=5):
         start = time.monotonic()
         banner.prefetch_update_check()
         elapsed = time.monotonic() - start
@@ -150,6 +151,36 @@ def test_prefetch_non_blocking():
         # Wait for the background thread to finish
         banner._update_check_done.wait(timeout=5)
         assert banner._update_result == 5
+
+
+def test_prefetch_update_check_disabled_by_default():
+    """Startup prefetch should not contact GitHub/PyPI unless explicitly enabled."""
+    import hermes_cli.banner as banner
+
+    banner._update_result = 99
+    banner._update_check_done = threading.Event()
+
+    with patch.object(banner, "startup_update_check_enabled", return_value=False), \
+         patch.object(banner, "check_for_updates") as mock_check:
+        banner.prefetch_update_check()
+
+    assert banner._update_check_done.is_set()
+    assert banner._update_result is None
+    mock_check.assert_not_called()
+
+
+def test_startup_update_check_enabled_reads_config():
+    import hermes_cli.banner as banner
+
+    with patch("hermes_cli.config.load_config", return_value={
+        "updates": {"check_on_startup": True}
+    }):
+        assert banner.startup_update_check_enabled() is True
+
+    with patch("hermes_cli.config.load_config", return_value={
+        "updates": {"check_on_startup": False}
+    }):
+        assert banner.startup_update_check_enabled() is False
 
 
 def test_invalidate_update_cache_clears_all_profiles(tmp_path):
