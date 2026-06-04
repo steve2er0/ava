@@ -62,6 +62,8 @@ def test_build_welcome_banner_uses_normalized_toolset_names():
         )
 
     output = console.export_text()
+    assert "__ ___" in output
+    assert "Nous Research" not in output
     assert "homeassistant:" in output
     assert "honcho:" in output
     assert "web:" in output
