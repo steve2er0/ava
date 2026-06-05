@@ -1529,14 +1529,11 @@ def _prune_orphaned_branches(repo_root: str) -> None:
 # ============================================================================
 
 # Color palette (hex colors for Rich markup):
-# - Gold: #FFD700 (headers, highlights)
-# - Amber: #FFBF00 (secondary highlights)
-# - Bronze: #CD7F32 (tertiary elements)
-# - Light: #FFF8DC (text)
-# - Dim: #B8860B (muted text)
+# - AVA blue: #0033A1 (borders, accents)
+# - White: #FFFFFF (text)
 
 # ANSI building blocks for conversation display
-_ACCENT_ANSI_DEFAULT = "\033[1;38;2;255;215;0m"  # True-color #FFD700 bold — fallback
+_ACCENT_ANSI_DEFAULT = "\033[1;38;2;0;51;161m"  # True-color #0033A1 bold — fallback
 _BOLD = "\033[1m"
 _RST = "\033[0m"
 _STREAM_PAD = "    "  # 4-space indent for streamed response text (matches Panel padding)
@@ -1564,8 +1561,8 @@ def _hex_to_ansi(hex_color: str, *, bold: bool = False) -> str:
 # Light/dark terminal mode detection.
 #
 # Mirrors ui-tui/src/theme.ts detectLightMode().  Used to decide whether
-# to remap "near-white" skin colors (e.g. #FFF8DC banner_text, #B8860B
-# banner_dim) to darker equivalents that are readable on a light
+# to remap "near-white" skin colors (e.g. #FFFFFF banner_text) to
+# darker equivalents that are readable on a light
 # Terminal.app / iTerm2 background.
 #
 # Detection priority:
@@ -1743,6 +1740,7 @@ def _detect_light_mode() -> bool:
 # become invisible the OTHER direction (dark gray on dark navy).
 _LIGHT_MODE_REMAP: dict[str, str] = {
     # Original (dark-mode) -> Light-mode replacement (darker, readable)
+    "#FFFFFF": "#1A1A1A",   # white -> near-black
     "#FFF8DC": "#1A1A1A",   # cornsilk -> near-black
     "#FFD700": "#9A6B00",   # gold -> dark goldenrod (readable on cream)
     "#FFBF00": "#8A5A00",   # amber -> dark amber
@@ -1822,7 +1820,7 @@ class _SkinAwareAnsi:
     force re-resolution after a ``/skin`` switch.
     """
 
-    def __init__(self, skin_key: str, fallback_hex: str = "#FFD700", *, bold: bool = False):
+    def __init__(self, skin_key: str, fallback_hex: str = "#0033A1", *, bold: bool = False):
         self._skin_key = skin_key
         self._fallback_hex = fallback_hex
         self._bold = bold
@@ -1851,12 +1849,12 @@ class _SkinAwareAnsi:
         self._cached = None
 
 
-_ACCENT = _SkinAwareAnsi("response_border", "#FFD700", bold=True)
+_ACCENT = _SkinAwareAnsi("response_border", "#0033A1", bold=True)
 # Use ANSI dim+italic attributes (\x1b[2;3m) instead of a hardcoded
 # hex color so dim/thinking text inherits the terminal's default
 # foreground color and stays readable in both light and dark
-# Terminal.app modes.  Hardcoded skin colors like #B8860B
-# (dark goldenrod) become invisible against light cream backgrounds.
+# Terminal.app modes.  Hardcoded near-white skin colors become invisible
+# against light cream backgrounds.
 _DIM = "\x1b[2;3m"
 
 
@@ -1864,9 +1862,9 @@ def _accent_hex() -> str:
     """Return the active skin accent color for legacy CLI output lines."""
     try:
         from hermes_cli.skin_engine import get_active_skin
-        return get_active_skin().get_color("ui_accent", "#FFBF00")
+        return get_active_skin().get_color("ui_accent", "#0033A1")
     except Exception:
-        return "#FFBF00"
+        return "#0033A1"
 
 
 def _rich_text_from_ansi(text: str) -> _RichText:
@@ -2790,10 +2788,10 @@ AVA_ASCII_LINES = (
 
 HERMES_AGENT_LOGO = "\n".join(
     (
-        "[bold #FFD700]  __ ___   ____ _[/]",
-        "[bold #FFD700] / _` \\ \\ / / _` |[/]",
-        "[#FFBF00]| (_| |\\ V / (_| |[/]",
-        "[#CD7F32] \\__,_| \\_/ \\__,_|[/]",
+        "[bold #0033A1]  __ ___   ____ _[/]",
+        "[bold #FFFFFF] / _` \\ \\ / / _` |[/]",
+        "[#0033A1]| (_| |\\ V / (_| |[/]",
+        "[#FFFFFF] \\__,_| \\_/ \\__,_|[/]",
     )
 )
 HERMES_CADUCEUS = HERMES_AGENT_LOGO
@@ -2809,9 +2807,9 @@ def _build_compact_banner() -> str:
         _skin = None
 
     skin_name = getattr(_skin, "name", "default") if _skin else "default"
-    border_color = _skin.get_color("banner_border", "#FFD700") if _skin else "#FFD700"
-    title_color = _skin.get_color("banner_title", "#FFBF00") if _skin else "#FFBF00"
-    dim_color = _skin.get_color("banner_dim", "#B8860B") if _skin else "#B8860B"
+    border_color = _skin.get_color("banner_border", "#0033A1") if _skin else "#0033A1"
+    title_color = _skin.get_color("banner_title", "#FFFFFF") if _skin else "#FFFFFF"
+    dim_color = _skin.get_color("banner_dim", "#FFFFFF") if _skin else "#FFFFFF"
 
     if skin_name == "default":
         content_lines = list(AVA_ASCII_LINES)
@@ -4543,10 +4541,10 @@ class HermesCLI:
                 from hermes_cli.skin_engine import get_active_skin
                 _skin = get_active_skin()
                 label = _skin.get_branding("response_label", "⚕ Hermes")
-                _text_hex = _skin.get_color("banner_text", "#FFF8DC")
+                _text_hex = _skin.get_color("banner_text", "#FFFFFF")
             except Exception:
                 label = "⚕ Hermes"
-                _text_hex = "#FFF8DC"
+                _text_hex = "#FFFFFF"
             # Build a true-color ANSI escape for the response text color
             # so streamed content matches the Rich Panel appearance.
             try:
@@ -5481,14 +5479,14 @@ class HermesCLI:
         try:
             from hermes_cli.skin_engine import get_active_skin
             _skin = get_active_skin()
-            _history_text_c = _skin.get_color("banner_text", "#FFF8DC")
-            _session_label_c = _skin.get_color("session_label", "#DAA520")
-            _session_border_c = _skin.get_color("session_border", "#8B8682")
+            _history_text_c = _skin.get_color("banner_text", "#FFFFFF")
+            _session_label_c = _skin.get_color("session_label", "#0033A1")
+            _session_border_c = _skin.get_color("session_border", "#FFFFFF")
             _assistant_label_c = _skin.get_color("ui_ok", "#8FBC8F")
         except Exception:
-            _history_text_c = "#FFF8DC"
-            _session_label_c = "#DAA520"
-            _session_border_c = "#8B8682"
+            _history_text_c = "#FFFFFF"
+            _session_label_c = "#0033A1"
+            _session_border_c = "#FFFFFF"
             _assistant_label_c = "#8FBC8F"
 
         lines = Text()
@@ -6050,11 +6048,11 @@ class HermesCLI:
         try:
             from hermes_cli.skin_engine import get_active_skin
             skin = get_active_skin()
-            separator_color = skin.get_color("banner_dim", "#B8860B")
-            accent_color = skin.get_color("ui_accent", "#FFBF00")
-            label_color = skin.get_color("ui_label", "#DAA520")
+            separator_color = skin.get_color("banner_dim", "#FFFFFF")
+            accent_color = skin.get_color("ui_accent", "#0033A1")
+            label_color = skin.get_color("ui_label", "#0033A1")
         except Exception:
-            separator_color, accent_color, label_color = "#B8860B", "#FFBF00", "cyan"
+            separator_color, accent_color, label_color = "#FFFFFF", "#0033A1", "#0033A1"
         toolsets_info = ""
         if self.enabled_toolsets and "all" not in self.enabled_toolsets:
             toolsets_info = f" [dim {separator_color}]·[/] [{label_color}]toolsets: {', '.join(self.enabled_toolsets)}[/]"
@@ -8706,9 +8704,9 @@ class HermesCLI:
                     _tip = get_random_tip()
                     try:
                         from hermes_cli.skin_engine import get_active_skin
-                        _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
+                        _tip_color = get_active_skin().get_color("banner_dim", "#FFFFFF")
                     except Exception:
-                        _tip_color = "#B8860B"
+                        _tip_color = "#FFFFFF"
                     cc.print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
                 except Exception:
                     pass
@@ -8721,9 +8719,9 @@ class HermesCLI:
                     _tip = get_random_tip()
                     try:
                         from hermes_cli.skin_engine import get_active_skin
-                        _tip_color = get_active_skin().get_color("banner_dim", "#B8860B")
+                        _tip_color = get_active_skin().get_color("banner_dim", "#FFFFFF")
                     except Exception:
-                        _tip_color = "#B8860B"
+                        _tip_color = "#FFFFFF"
                     self._console_print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
                 except Exception:
                     pass
@@ -9222,12 +9220,12 @@ class HermesCLI:
                         from hermes_cli.skin_engine import get_active_skin
                         _skin = get_active_skin()
                         label = _skin.get_branding("response_label", "⚕ Hermes")
-                        _resp_color = _maybe_remap_for_light_mode(_skin.get_color("response_border", "#CD7F32"))
-                        _resp_text = _maybe_remap_for_light_mode(_skin.get_color("banner_text", "#FFF8DC"))
+                        _resp_color = _maybe_remap_for_light_mode(_skin.get_color("response_border", "#0033A1"))
+                        _resp_text = _maybe_remap_for_light_mode(_skin.get_color("banner_text", "#FFFFFF"))
                     except Exception:
                         label = "⚕ Hermes"
-                        _resp_color = "#CD7F32"
-                        _resp_text = "#FFF8DC"
+                        _resp_color = "#0033A1"
+                        _resp_text = "#FFFFFF"
 
                     _chat_console = ChatConsole()
                     _chat_console.print(Panel(
@@ -12509,12 +12507,12 @@ class HermesCLI:
                     from hermes_cli.skin_engine import get_active_skin
                     _skin = get_active_skin()
                     label = _skin.get_branding("response_label", "⚕ Hermes")
-                    _resp_color = _maybe_remap_for_light_mode(_skin.get_color("response_border", "#CD7F32"))
-                    _resp_text = _maybe_remap_for_light_mode(_skin.get_color("banner_text", "#FFF8DC"))
+                    _resp_color = _maybe_remap_for_light_mode(_skin.get_color("response_border", "#0033A1"))
+                    _resp_text = _maybe_remap_for_light_mode(_skin.get_color("banner_text", "#FFFFFF"))
                 except Exception:
                     label = "⚕ Hermes"
-                    _resp_color = _maybe_remap_for_light_mode("#CD7F32")
-                    _resp_text = _maybe_remap_for_light_mode("#FFF8DC")
+                    _resp_color = _maybe_remap_for_light_mode("#0033A1")
+                    _resp_text = _maybe_remap_for_light_mode("#FFFFFF")
 
                 is_error_response = result and (result.get("failed") or result.get("partial"))
                 already_streamed = self._stream_started and self._stream_box_opened and not is_error_response
@@ -12925,10 +12923,10 @@ class HermesCLI:
             from hermes_cli.skin_engine import get_active_skin
             _welcome_skin = get_active_skin()
             _welcome_text = _welcome_skin.get_branding("welcome", "Welcome to Hermes Agent! Type your message or /help for commands.")
-            _welcome_color = _welcome_skin.get_color("banner_text", "#FFF8DC")
+            _welcome_color = _welcome_skin.get_color("banner_text", "#FFFFFF")
         except Exception:
             _welcome_text = "Welcome to Hermes Agent! Type your message or /help for commands."
-            _welcome_color = "#FFF8DC"
+            _welcome_color = "#FFFFFF"
         self._console_print(f"[{_welcome_color}]{_welcome_text}[/]")
 
         # Redaction opt-out warning (#17691): ON by default, loud when off.
@@ -12961,9 +12959,9 @@ class HermesCLI:
             )
             if not is_seen(self.config, OPENCLAW_RESIDUE_FLAG) and detect_openclaw_residue():
                 try:
-                    _resid_color = _welcome_skin.get_color("banner_dim", "#B8860B")
+                    _resid_color = _welcome_skin.get_color("banner_dim", "#FFFFFF")
                 except Exception:
-                    _resid_color = "#B8860B"
+                    _resid_color = "#FFFFFF"
                 self._console_print(f"[{_resid_color}]{openclaw_residue_hint_cli()}[/]")
                 try:
                     from hermes_cli.config import get_config_path as _get_cfg_path_resid
@@ -12977,9 +12975,9 @@ class HermesCLI:
             from hermes_cli.tips import get_random_tip
             _tip = get_random_tip()
             try:
-                _tip_color = _welcome_skin.get_color("banner_dim", "#B8860B")
+                _tip_color = _welcome_skin.get_color("banner_dim", "#FFFFFF")
             except Exception:
-                _tip_color = "#B8860B"
+                _tip_color = "#FFFFFF"
             self._console_print(f"[dim {_tip_color}]✦ Tip: {_tip}[/]")
         except Exception:
             pass  # Tips are non-critical — never break startup
@@ -14701,56 +14699,56 @@ class HermesCLI:
             # Input area / prompt: empty style strings inherit the
             # terminal's default foreground/background, so the typed
             # text is readable in both light and dark Terminal.app
-            # color schemes.  (Hardcoding a near-white #FFF8DC made
+            # color schemes.  (Hardcoding near-white text made
             # input invisible on light backgrounds.)
             'input-area': '',
             'placeholder': '#888888 italic',
             'prompt': '',
             'prompt-working': '#888888 italic',
             'hint': '#888888 italic',
-            'status-bar': 'bg:#1a1a2e #C0C0C0',
-            'status-bar-strong': 'bg:#1a1a2e #FFD700 bold',
-            'status-bar-dim': 'bg:#1a1a2e #8B8682',
-            'status-bar-good': 'bg:#1a1a2e #8FBC8F bold',
-            'status-bar-warn': 'bg:#1a1a2e #FFD700 bold',
-            'status-bar-bad': 'bg:#1a1a2e #FF8C00 bold',
-            'status-bar-critical': 'bg:#1a1a2e #FF6B6B bold',
-            'status-bar-yolo': 'bg:#1a1a2e #FF4444 bold',
-            # Bronze horizontal rules around the input area
-            'input-rule': '#CD7F32',
+            'status-bar': 'bg:#0033A1 #FFFFFF',
+            'status-bar-strong': 'bg:#0033A1 #FFFFFF bold',
+            'status-bar-dim': 'bg:#0033A1 #FFFFFF',
+            'status-bar-good': 'bg:#0033A1 #FFFFFF bold',
+            'status-bar-warn': 'bg:#0033A1 #FFFFFF bold',
+            'status-bar-bad': 'bg:#0033A1 #FFFFFF bold',
+            'status-bar-critical': 'bg:#0033A1 #FFFFFF bold',
+            'status-bar-yolo': 'bg:#0033A1 #FFFFFF bold',
+            # AVA blue horizontal rules around the input area
+            'input-rule': '#0033A1',
             # Clipboard image attachment badges
             'image-badge': '#87CEEB bold',
-            'completion-menu': 'bg:#1a1a2e #FFF8DC',
-            'completion-menu.completion': 'bg:#1a1a2e #FFF8DC',
-            'completion-menu.completion.current': 'bg:#333355 #FFD700',
-            'completion-menu.meta.completion': 'bg:#1a1a2e #888888',
-            'completion-menu.meta.completion.current': 'bg:#333355 #FFBF00',
+            'completion-menu': 'bg:#0033A1 #FFFFFF',
+            'completion-menu.completion': 'bg:#0033A1 #FFFFFF',
+            'completion-menu.completion.current': 'bg:#0033A1 #FFFFFF bold',
+            'completion-menu.meta.completion': 'bg:#0033A1 #FFFFFF',
+            'completion-menu.meta.completion.current': 'bg:#0033A1 #FFFFFF bold',
             # Clarify question panel
-            'clarify-border': '#CD7F32',
-            'clarify-title': '#FFD700 bold',
-            'clarify-question': '#FFF8DC bold',
+            'clarify-border': '#0033A1',
+            'clarify-title': '#FFFFFF bold',
+            'clarify-question': '#FFFFFF bold',
             'clarify-choice': '#AAAAAA',
-            'clarify-selected': '#FFD700 bold',
-            'clarify-active-other': '#FFD700 italic',
-            'clarify-countdown': '#CD7F32',
+            'clarify-selected': '#FFFFFF bold',
+            'clarify-active-other': '#FFFFFF italic',
+            'clarify-countdown': '#0033A1',
             # Sudo password panel
             'sudo-prompt': '#FF6B6B bold',
-            'sudo-border': '#CD7F32',
+            'sudo-border': '#0033A1',
             'sudo-title': '#FF6B6B bold',
-            'sudo-text': '#FFF8DC',
+            'sudo-text': '#FFFFFF',
             # Dangerous command approval panel
-            'approval-border': '#CD7F32',
+            'approval-border': '#0033A1',
             'approval-title': '#FF8C00 bold',
-            'approval-desc': '#FFF8DC bold',
+            'approval-desc': '#FFFFFF bold',
             'approval-cmd': '#AAAAAA italic',
             'approval-choice': '#AAAAAA',
-            'approval-selected': '#FFD700 bold',
+            'approval-selected': '#FFFFFF bold',
             # Voice mode
             'voice-prompt': '#87CEEB',
             'voice-recording': '#FF4444 bold',
             'voice-processing': '#FFA500 italic',
-            'voice-status': 'bg:#1a1a2e #87CEEB',
-            'voice-status-recording': 'bg:#1a1a2e #FF4444 bold',
+            'voice-status': 'bg:#0033A1 #FFFFFF',
+            'voice-status-recording': 'bg:#0033A1 #FFFFFF bold',
         }
         style = PTStyle.from_dict(self._build_tui_style_dict())
         

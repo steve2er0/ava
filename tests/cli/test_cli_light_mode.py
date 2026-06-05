@@ -106,6 +106,7 @@ class TestLightModeRemap:
         monkeypatch.setenv("HERMES_LIGHT", "1")
         # Force the detect cache to True for this test.
         cli_mod._LIGHT_MODE_CACHE = True
+        assert cli_mod._maybe_remap_for_light_mode("#FFFFFF") == "#1A1A1A"
         assert cli_mod._maybe_remap_for_light_mode("#FFF8DC") == "#1A1A1A"
         assert cli_mod._maybe_remap_for_light_mode("#FFD700") == "#9A6B00"
 

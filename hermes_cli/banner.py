@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # ANSI building blocks for conversation display
 # =========================================================================
 
-_GOLD = "\033[1;38;2;255;215;0m"  # True-color #FFD700 bold
+_GOLD = "\033[1;38;2;0;51;161m"  # True-color #0033A1 bold
 _BOLD = "\033[1m"
 _DIM = "\033[2m"
 _RST = "\033[0m"
@@ -60,10 +60,10 @@ def _skin_color(key: str, fallback: str) -> str:
 
 from hermes_cli import __version__ as VERSION, __release_date__ as RELEASE_DATE
 
-AVA_ASCII_ART = """[bold #FFD700]  __ ___   ____ _[/]
-[bold #FFD700] / _` \\ \\ / / _` |[/]
-[#FFBF00]| (_| |\\ V / (_| |[/]
-[#CD7F32] \\__,_| \\_/ \\__,_|[/]"""
+AVA_ASCII_ART = """[bold #0033A1]  __ ___   ____ _[/]
+[bold #FFFFFF] / _` \\ \\ / / _` |[/]
+[#0033A1]| (_| |\\ V / (_| |[/]
+[#FFFFFF] \\__,_| \\_/ \\__,_|[/]"""
 
 HERMES_AGENT_LOGO = AVA_ASCII_ART
 HERMES_CADUCEUS = AVA_ASCII_ART
@@ -544,10 +544,10 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     layout_table.add_column("right", justify="left")
 
     # Resolve skin colors once for the entire banner
-    accent = _skin_color("banner_accent", "#FFBF00")
-    dim = _skin_color("banner_dim", "#B8860B")
-    text = _skin_color("banner_text", "#FFF8DC")
-    session_color = _skin_color("session_border", "#8B8682")
+    accent = _skin_color("banner_accent", "#0033A1")
+    dim = _skin_color("banner_dim", "#FFFFFF")
+    text = _skin_color("banner_text", "#FFFFFF")
+    session_color = _skin_color("session_border", "#FFFFFF")
 
     # Use skin's custom hero art if provided; default startup art is AVA ASCII.
     try:
@@ -726,8 +726,8 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
 
-    title_color = _skin_color("banner_title", "#FFD700")
-    border_color = _skin_color("banner_border", "#CD7F32")
+    title_color = _skin_color("banner_title", "#FFFFFF")
+    border_color = _skin_color("banner_border", "#0033A1")
     version_label = format_banner_version_label()
     release_info = get_latest_release_tag()
     if release_info:

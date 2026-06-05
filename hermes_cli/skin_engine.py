@@ -17,36 +17,36 @@ All fields are optional. Missing values inherit from the ``default`` skin.
 
     # Colors: hex values for Rich markup (banner, UI, response box)
     colors:
-      banner_border: "#CD7F32"            # Panel border color
-      banner_title: "#FFD700"             # Panel title text color
-      banner_accent: "#FFBF00"            # Section headers (Available Tools, etc.)
-      banner_dim: "#B8860B"               # Dim/muted text (separators, labels)
-      banner_text: "#FFF8DC"              # Body text (tool names, skill names)
-      ui_accent: "#FFBF00"               # General UI accent
-      ui_label: "#DAA520"                # UI labels (warm gold; teal clashed w/ default banner gold)
+      banner_border: "#0033A1"            # Panel border color
+      banner_title: "#FFFFFF"             # Panel title text color
+      banner_accent: "#0033A1"            # Section headers (Available Tools, etc.)
+      banner_dim: "#FFFFFF"               # Dim/muted text (separators, labels)
+      banner_text: "#FFFFFF"              # Body text (tool names, skill names)
+      ui_accent: "#0033A1"               # General UI accent
+      ui_label: "#0033A1"                # UI labels
       ui_ok: "#4caf50"                   # Success indicators
       ui_error: "#ef5350"                # Error indicators
       ui_warn: "#ffa726"                 # Warning indicators
-      prompt: "#FFF8DC"                  # Prompt text color
-      input_rule: "#CD7F32"              # Input area horizontal rule
-      response_border: "#FFD700"         # Response box border (ANSI)
-      status_bar_bg: "#1a1a2e"           # Status bar background
-      status_bar_text: "#C0C0C0"         # Status bar default text
-      status_bar_strong: "#FFD700"       # Status bar highlighted text
-      status_bar_dim: "#8B8682"          # Status bar separators/muted text
+      prompt: "#FFFFFF"                  # Prompt text color
+      input_rule: "#0033A1"              # Input area horizontal rule
+      response_border: "#0033A1"         # Response box border (ANSI)
+      status_bar_bg: "#0033A1"           # Status bar background
+      status_bar_text: "#FFFFFF"         # Status bar default text
+      status_bar_strong: "#FFFFFF"       # Status bar highlighted text
+      status_bar_dim: "#FFFFFF"          # Status bar separators/muted text
       status_bar_good: "#8FBC8F"         # Healthy context usage
-      status_bar_warn: "#FFD700"         # Warning context usage
+      status_bar_warn: "#FFFFFF"         # Warning context usage
       status_bar_bad: "#FF8C00"          # High context usage
       status_bar_critical: "#FF6B6B"     # Critical context usage
-      session_label: "#DAA520"           # Session label color
-      session_border: "#8B8682"          # Session ID dim color
-      status_bar_bg: "#1a1a2e"          # TUI status/usage bar background
-      voice_status_bg: "#1a1a2e"        # TUI voice status background
-      selection_bg: "#333355"           # TUI mouse-selection highlight background
-      completion_menu_bg: "#1a1a2e"      # Completion menu background
-      completion_menu_current_bg: "#333355"  # Active completion row background
-      completion_menu_meta_bg: "#1a1a2e"     # Completion meta column background
-      completion_menu_meta_current_bg: "#333355"  # Active completion meta background
+      session_label: "#0033A1"           # Session label color
+      session_border: "#FFFFFF"          # Session ID dim color
+      status_bar_bg: "#0033A1"          # TUI status/usage bar background
+      voice_status_bg: "#0033A1"        # TUI voice status background
+      selection_bg: "#0033A1"           # TUI mouse-selection highlight background
+      completion_menu_bg: "#0033A1"      # Completion menu background
+      completion_menu_current_bg: "#0033A1"  # Active completion row background
+      completion_menu_meta_bg: "#0033A1"     # Completion meta column background
+      completion_menu_meta_current_bg: "#0033A1"  # Active completion meta background
 
     # Spinner: customize the animated spinner during API calls
     spinner:
@@ -89,7 +89,7 @@ USAGE
     from hermes_cli.skin_engine import get_active_skin, list_skins, set_active_skin
 
     skin = get_active_skin()
-    print(skin.colors["banner_title"])    # "#FFD700"
+    print(skin.colors["banner_title"])    # "#FFFFFF"
     print(skin.get_branding("agent_name"))  # "AVA"
 
     set_active_skin("ares")               # Switch to built-in ares skin
@@ -98,7 +98,7 @@ USAGE
 BUILT-IN SKINS
 ==============
 
-- ``default`` — Classic Hermes gold/kawaii (the current look)
+- ``default`` — AVA blue/white
 - ``ares``    — Crimson/bronze war-god theme with custom spinner wings
 - ``mono``    — Clean grayscale monochrome
 - ``slate``   — Cool blue developer-focused theme
@@ -164,24 +164,24 @@ class SkinConfig:
 _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
     "default": {
         "name": "default",
-        "description": "Classic Hermes — gold and kawaii",
+        "description": "AVA blue/white",
         "colors": {
-            "banner_border": "#CD7F32",
-            "banner_title": "#FFD700",
-            "banner_accent": "#FFBF00",
-            "banner_dim": "#B8860B",
-            "banner_text": "#FFF8DC",
-            "ui_accent": "#FFBF00",
-            "ui_label": "#DAA520",
-            "ui_ok": "#4caf50",
-            "ui_error": "#ef5350",
-            "ui_warn": "#ffa726",
-            "prompt": "#FFF8DC",
-            "input_rule": "#CD7F32",
-            "response_border": "#FFD700",
-            "status_bar_bg": "#1a1a2e",
-            "session_label": "#DAA520",
-            "session_border": "#8B8682",
+            "banner_border": "#0033A1",
+            "banner_title": "#FFFFFF",
+            "banner_accent": "#0033A1",
+            "banner_dim": "#FFFFFF",
+            "banner_text": "#FFFFFF",
+            "ui_accent": "#0033A1",
+            "ui_label": "#0033A1",
+            "ui_ok": "#FFFFFF",
+            "ui_error": "#FFFFFF",
+            "ui_warn": "#FFFFFF",
+            "prompt": "#FFFFFF",
+            "input_rule": "#0033A1",
+            "response_border": "#0033A1",
+            "status_bar_bg": "#0033A1",
+            "session_label": "#0033A1",
+            "session_border": "#FFFFFF",
         },
         "spinner": {
             # Empty = use hardcoded defaults in display.py
@@ -859,14 +859,14 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     # color schemes).  Skins can opt into a colored prompt by setting
     # `prompt` explicitly in their YAML.
     prompt = skin.get_color("prompt", "")
-    input_rule = skin.get_color("input_rule", "#CD7F32")
-    title = skin.get_color("banner_title", "#FFD700")
-    text = skin.get_color("banner_text", "#FFF8DC")
+    input_rule = skin.get_color("input_rule", "#0033A1")
+    title = skin.get_color("banner_title", "#FFFFFF")
+    text = skin.get_color("banner_text", "#FFFFFF")
     dim = skin.get_color("banner_dim", "#555555")
     label = skin.get_color("ui_label", title)
     warn = skin.get_color("ui_warn", "#FF8C00")
     error = skin.get_color("ui_error", "#FF6B6B")
-    status_bg = skin.get_color("status_bar_bg", "#1a1a2e")
+    status_bg = skin.get_color("status_bar_bg", "#0033A1")
     status_text = skin.get_color("status_bar_text", text)
     status_strong = skin.get_color("status_bar_strong", title)
     status_dim = skin.get_color("status_bar_dim", dim)
@@ -875,8 +875,8 @@ def get_prompt_toolkit_style_overrides() -> Dict[str, str]:
     status_bad = skin.get_color("status_bar_bad", skin.get_color("banner_accent", warn))
     status_critical = skin.get_color("status_bar_critical", error)
     voice_bg = skin.get_color("voice_status_bg", status_bg)
-    menu_bg = skin.get_color("completion_menu_bg", "#1a1a2e")
-    menu_current_bg = skin.get_color("completion_menu_current_bg", "#333355")
+    menu_bg = skin.get_color("completion_menu_bg", "#0033A1")
+    menu_current_bg = skin.get_color("completion_menu_current_bg", "#0033A1")
     menu_meta_bg = skin.get_color("completion_menu_meta_bg", menu_bg)
     menu_meta_current_bg = skin.get_color("completion_menu_meta_current_bg", menu_current_bg)
 
