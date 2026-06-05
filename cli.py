@@ -11782,7 +11782,7 @@ class HermesCLI:
         if not state:
             return []
 
-        def _panel_box_width(title_text: str, content_lines: list[str], min_width: int = 46, max_width: int = 76) -> int:
+        def _panel_box_width(title_text: str, content_lines: list[str], min_width: int = 46, max_width: int = 96) -> int:
             term_cols = shutil.get_terminal_size((100, 20)).columns
             longest = max([len(title_text)] + [len(line) for line in content_lines] + [min_width - 4])
             inner = min(max(longest + 4, min_width - 2), max_width - 2, max(24, term_cols - 6))
@@ -11807,6 +11807,60 @@ class HermesCLI:
         def _append_blank_panel_line(lines, border_style: str, box_width: int) -> None:
             lines.append((border_style, "│" + (" " * box_width) + "│\n"))
 
+        def _parse_structured_payload(raw: str) -> dict | None:
+            if not isinstance(raw, str):
+                return None
+            stripped = raw.strip()
+            if not stripped.startswith("{"):
+                return None
+            try:
+                parsed = json.loads(stripped)
+            except (TypeError, ValueError):
+                return None
+            return parsed if isinstance(parsed, dict) else None
+
+        def _string_list(value) -> list[str]:
+            if isinstance(value, list):
+                return [str(item) for item in value if str(item).strip()]
+            if isinstance(value, tuple):
+                return [str(item) for item in value if str(item).strip()]
+            if isinstance(value, str) and value.strip():
+                return [value.strip()]
+            return []
+
+        def _preview_text(value: str, limit: int) -> str:
+            text = str(value or "")
+            if show_full or len(text) <= limit:
+                return text
+            return text[:limit].rstrip() + "..."
+
+        def _terminal_request_summary(shell_text: str, operations: list[str]) -> str:
+            op_text = " ".join(operations).lower()
+            first_line = next((line.strip() for line in str(shell_text or "").splitlines() if line.strip()), "")
+            first_word = first_line.split(None, 1)[0].strip("'\"") if first_line else ""
+            executable = Path(first_word).name.lower()
+
+            if "python" in op_text or executable.startswith("python"):
+                return "A Python command that would make a web request."
+            if executable in {"curl", "wget", "http", "https"} or "http client" in op_text:
+                name = executable.upper() if executable in {"http", "https"} else executable
+                return f"A {name or 'terminal'} command that would make a web request."
+            if executable == "git" or "git" in op_text:
+                return "A git command that would contact a remote repository."
+            if executable in {"pip", "pip3", "uv", "npm", "pnpm", "yarn", "gem", "cargo"}:
+                return f"A {executable} command that would contact a package registry."
+            return "A terminal command that would contact the internet."
+
+        def _wrap_rows(rows: list[tuple[str, str]], width: int) -> list[tuple[str, str]]:
+            wrapped_rows: list[tuple[str, str]] = []
+            for style, text in rows:
+                parts = str(text or "").splitlines() or [""]
+                subsequent_indent = "" if style == "class:approval-cmd" else "  "
+                for part in parts:
+                    for wrapped in _wrap_panel_text(part, width, subsequent_indent=subsequent_indent):
+                        wrapped_rows.append((style, wrapped))
+            return wrapped_rows
+
         command = state["command"]
         description = state["description"]
         choices = state["choices"]
@@ -11814,7 +11868,82 @@ class HermesCLI:
         show_full = state.get("show_full", False)
 
         title = "⚠️  Dangerous Command"
-        cmd_display = command if show_full or len(command) <= 70 else command[:70] + '...'
+        command_label = "This is the command AVA is asking to run:"
+        command_preview_limit = 70
+        command_text = str(command or "")
+        pre_command_rows: list[tuple[str, str]] = []
+        post_command_rows: list[tuple[str, str]] = []
+        optional_rows: list[tuple[str, str]] = []
+
+        payload = _parse_structured_payload(command_text)
+        if payload and payload.get("tool") == "terminal" and payload.get("network_egress") is True:
+            title = "⚠️  Outbound Network Request"
+            exact_command_text = str(payload.get("command") or command_text)
+            destinations = _string_list(payload.get("destinations"))
+            operations = _string_list(payload.get("matched_operations") or payload.get("operations"))
+
+            pre_command_rows.append((
+                "class:approval-desc",
+                "AVA is asking to send data to the internet.",
+            ))
+            if destinations:
+                pre_command_rows.append(("class:approval-desc", "This would contact:"))
+                for destination in destinations:
+                    pre_command_rows.append(("class:approval-cmd", f"  {destination}"))
+            else:
+                pre_command_rows.append((
+                    "class:approval-desc",
+                    "AVA could not identify the exact internet destination from the command.",
+                ))
+            if show_full:
+                command_label = "Full terminal command:"
+                command_text = exact_command_text
+            else:
+                command_label = "This is the command AVA is asking to run:"
+                command_text = _terminal_request_summary(exact_command_text, operations)
+                command_preview_limit = 240
+                if "view" in choices:
+                    post_command_rows.append((
+                        "class:approval-desc",
+                        "Select Show full command to inspect the exact terminal text.",
+                    ))
+            note = str(payload.get("note") or "").strip()
+            if note and show_full:
+                optional_rows.append(("class:approval-desc", "Note: " + note))
+        elif payload and payload.get("tool") == "web_search":
+            title = "⚠️  Outbound Web Search"
+            query_text = str(payload.get("query") or "")
+            backend = str(payload.get("backend") or "").strip()
+            provider = str(payload.get("provider") or "").strip()
+            limit = payload.get("limit")
+
+            pre_command_rows.append((
+                "class:approval-desc",
+                "AVA is asking to search the web.",
+            ))
+            if provider:
+                pre_command_rows.append(("class:approval-desc", f"This would use: {provider}"))
+            if backend:
+                pre_command_rows.append(("class:approval-desc", f"Search backend: {backend}"))
+            if limit not in (None, ""):
+                pre_command_rows.append(("class:approval-desc", f"Number of results requested: {limit}"))
+            if show_full:
+                command_label = "Full search request:"
+                command_text = command
+            else:
+                command_label = "This is what AVA was going to query the web for:"
+                command_text = query_text or "(empty search query)"
+                command_preview_limit = 520
+                if "view" in choices:
+                    post_command_rows.append((
+                        "class:approval-desc",
+                        "Select Show full command to inspect the exact request payload.",
+                    ))
+        else:
+            if description:
+                optional_rows.append(("class:approval-desc", str(description)))
+
+        cmd_display = _preview_text(command_text, command_preview_limit)
         choice_labels = {
             "once": "Allow once",
             "session": "Allow for this session",
@@ -11823,8 +11952,15 @@ class HermesCLI:
             "view": "Show full command",
         }
 
-        preview_lines = _wrap_panel_text(description, 60)
+        preview_lines = []
+        for _style, text in pre_command_rows:
+            preview_lines.extend(_wrap_panel_text(text, 60))
+        preview_lines.extend(_wrap_panel_text(command_label, 60))
         preview_lines.extend(_wrap_panel_text(cmd_display, 60))
+        for _style, text in post_command_rows:
+            preview_lines.extend(_wrap_panel_text(text, 60))
+        for _style, text in optional_rows:
+            preview_lines.extend(_wrap_panel_text(text, 60))
         for i, choice in enumerate(choices):
             prefix = '❯ ' if i == selected else '  '
             preview_lines.extend(_wrap_panel_text(
@@ -11836,8 +11972,12 @@ class HermesCLI:
         box_width = _panel_box_width(title, preview_lines)
         inner_text_width = max(8, box_width - 2)
 
-        # Pre-wrap the mandatory content — command + choices must always render.
-        cmd_wrapped = _wrap_panel_text(cmd_display, inner_text_width)
+        # Pre-wrap the mandatory content — request details, command/query, and
+        # choices must always render before optional explanatory text.
+        pre_command_wrapped = _wrap_rows(pre_command_rows, inner_text_width)
+        command_label_wrapped = _wrap_rows([("class:approval-desc", command_label)], inner_text_width)
+        cmd_wrapped = _wrap_rows([("class:approval-cmd", cmd_display)], inner_text_width)
+        post_command_wrapped = _wrap_rows(post_command_rows, inner_text_width)
 
         # (choice_index, wrapped_line) so we can re-apply selected styling below
         choice_wrapped: list[tuple[int, str]] = []
@@ -11874,7 +12014,14 @@ class HermesCLI:
         reserved_below = 6
 
         available = max(0, term_rows - reserved_below)
-        mandatory_full = chrome_full + len(cmd_wrapped) + len(choice_wrapped)
+        mandatory_full = (
+            chrome_full
+            + len(pre_command_wrapped)
+            + len(command_label_wrapped)
+            + len(cmd_wrapped)
+            + len(post_command_wrapped)
+            + len(choice_wrapped)
+        )
 
         # If the full-chrome panel doesn't fit, drop the separator blanks.
         # This keeps the command and every choice on-screen in compact terminals.
@@ -11884,38 +12031,69 @@ class HermesCLI:
         # If the command itself is too long to leave room for choices (e.g. user
         # hit "view" on a multi-hundred-character command), truncate it so the
         # approve/deny buttons still render. Keep at least 1 row of command.
-        max_cmd_rows = max(1, available - chrome_rows - len(choice_wrapped))
+        max_cmd_rows = max(
+            1,
+            available
+            - chrome_rows
+            - len(pre_command_wrapped)
+            - len(command_label_wrapped)
+            - len(post_command_wrapped)
+            - len(choice_wrapped),
+        )
         if len(cmd_wrapped) > max_cmd_rows:
             keep = max(1, max_cmd_rows - 1) if max_cmd_rows > 1 else 1
-            cmd_wrapped = cmd_wrapped[:keep] + ["… (command truncated — use /logs or /debug for full text)"]
+            truncation_hint = (
+                "… (command truncated — select Show full command to expand)"
+                if "view" in choices
+                else "… (command truncated — use /logs or /debug for full text)"
+            )
+            cmd_wrapped = cmd_wrapped[:keep] + [
+                ("class:approval-cmd", truncation_hint)
+            ]
 
         # Allocate any remaining rows to description. The extra -1 in full mode
         # accounts for the blank separator between choices and description.
-        mandatory_no_desc = chrome_rows + len(cmd_wrapped) + len(choice_wrapped)
+        mandatory_no_desc = (
+            chrome_rows
+            + len(pre_command_wrapped)
+            + len(command_label_wrapped)
+            + len(cmd_wrapped)
+            + len(post_command_wrapped)
+            + len(choice_wrapped)
+        )
         desc_sep_cost = 0 if use_compact_chrome else 1
         available_for_desc = available - mandatory_no_desc - desc_sep_cost
         # Even on huge terminals, cap description height so the panel stays compact.
         available_for_desc = max(0, min(available_for_desc, 10))
 
-        desc_wrapped = _wrap_panel_text(description, inner_text_width) if description else []
+        desc_wrapped = _wrap_rows(optional_rows, inner_text_width) if optional_rows else []
         if available_for_desc < 1 or not desc_wrapped:
             desc_wrapped = []
         elif len(desc_wrapped) > available_for_desc:
             keep = max(1, available_for_desc - 1)
-            desc_wrapped = desc_wrapped[:keep] + ["… (description truncated)"]
+            desc_wrapped = desc_wrapped[:keep] + [
+                ("class:approval-desc", "… (description truncated)")
+            ]
 
-        # Render: title → command → choices → description (description last so
-        # any remaining overflow clips from the bottom of the least-critical
-        # content, never from the command or choices). Use compact chrome (no
-        # blank separators) when the terminal is tight.
+        # Render: title → request details → command/query → choices →
+        # description (description last so any remaining overflow clips from
+        # the bottom of the least-critical content, never from the command or
+        # choices). Use compact chrome (no blank separators) when the terminal
+        # is tight.
         lines = []
         lines.append(('class:approval-border', '╭' + ('─' * box_width) + '╮\n'))
         _append_panel_line(lines, 'class:approval-border', 'class:approval-title', title, box_width)
         if not use_compact_chrome:
             _append_blank_panel_line(lines, 'class:approval-border', box_width)
 
-        for wrapped in cmd_wrapped:
-            _append_panel_line(lines, 'class:approval-border', 'class:approval-cmd', wrapped, box_width)
+        for style, wrapped in pre_command_wrapped:
+            _append_panel_line(lines, 'class:approval-border', style, wrapped, box_width)
+        for style, wrapped in command_label_wrapped:
+            _append_panel_line(lines, 'class:approval-border', style, wrapped, box_width)
+        for style, wrapped in cmd_wrapped:
+            _append_panel_line(lines, 'class:approval-border', style, wrapped, box_width)
+        for style, wrapped in post_command_wrapped:
+            _append_panel_line(lines, 'class:approval-border', style, wrapped, box_width)
         if not use_compact_chrome:
             _append_blank_panel_line(lines, 'class:approval-border', box_width)
 
@@ -11926,8 +12104,8 @@ class HermesCLI:
         if desc_wrapped:
             if not use_compact_chrome:
                 _append_blank_panel_line(lines, 'class:approval-border', box_width)
-            for wrapped in desc_wrapped:
-                _append_panel_line(lines, 'class:approval-border', 'class:approval-desc', wrapped, box_width)
+            for style, wrapped in desc_wrapped:
+                _append_panel_line(lines, 'class:approval-border', style, wrapped, box_width)
 
         lines.append(('class:approval-border', '╰' + ('─' * box_width) + '╯\n'))
         return lines

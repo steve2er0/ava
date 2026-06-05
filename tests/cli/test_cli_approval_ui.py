@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -176,6 +177,143 @@ class TestCliApprovalUi:
         assert "archive-" in rendered
         assert "keyring.gpg" in rendered
         assert "status=progress" in rendered
+
+    def test_approval_display_unpacks_terminal_network_payload(self):
+        cli = _make_cli_stub()
+        shell_command = (
+            "python3 - <<'PY'\n"
+            "import urllib.request\n"
+            "urllib.request.urlopen('https://duckduckgo.com/html/?q=shock+srs')\n"
+            "PY"
+        )
+        payload = {
+            "tool": "terminal",
+            "network_egress": True,
+            "command": shell_command,
+            "destinations": ["https://duckduckgo.com/html/?q=shock+srs"],
+            "matched_operations": ["Python HTTP client"],
+            "note": "Inline URLs and request bodies may leave this machine.",
+        }
+        cli._approval_state = {
+            "command": json.dumps(payload, indent=2),
+            "description": (
+                "Outbound terminal network request. Review the command and "
+                "detected destination(s): https://duckduckgo.com/html/?q=shock+srs. "
+                "Approve only if this data is OK to leave this machine."
+            ),
+            "choices": ["once", "session", "deny", "view"],
+            "selected": 0,
+            "response_queue": queue.Queue(),
+        }
+
+        fragments = cli._get_approval_display_fragments()
+        rendered = "".join(text for _style, text in fragments)
+
+        assert "Outbound Network Request" in rendered
+        assert "AVA is asking to send data to the internet." in rendered
+        assert "This would contact:" in rendered
+        assert "https://duckduckgo.com/html/?q=shock+srs" in rendered
+        assert "This is the command AVA is asking to run:" in rendered
+        assert "A Python command that would make a web request." in rendered
+        assert "python3" not in rendered
+        assert "urllib.request.urlopen" not in rendered
+        assert "network_egress" not in rendered
+        assert '"tool": "terminal"' not in rendered
+        assert rendered.index("This would contact:") < rendered.index("This is the command")
+        assert rendered.index("This is the command") < rendered.index("Allow once")
+        assert "Show full command" in rendered
+
+    def test_approval_display_shows_exact_network_command_after_view(self):
+        cli = _make_cli_stub()
+        shell_command = (
+            "python3 - <<'PY'\n"
+            "import urllib.request\n"
+            "urllib.request.urlopen('https://duckduckgo.com/html/?q=shock+srs')\n"
+            "PY"
+        )
+        payload = {
+            "tool": "terminal",
+            "network_egress": True,
+            "command": shell_command,
+            "destinations": ["https://duckduckgo.com/html/?q=shock+srs"],
+            "matched_operations": ["Python HTTP client"],
+            "note": "Inline URLs and request bodies may leave this machine.",
+        }
+        cli._approval_state = {
+            "command": json.dumps(payload, indent=2),
+            "description": "Outbound terminal network request.",
+            "choices": ["once", "session", "deny"],
+            "selected": 0,
+            "show_full": True,
+            "response_queue": queue.Queue(),
+        }
+
+        fragments = cli._get_approval_display_fragments()
+        rendered = "".join(text for _style, text in fragments)
+
+        assert "Full terminal command:" in rendered
+        assert "python3" in rendered
+        assert "urllib.request.urlopen" in rendered
+        assert "network_egress" not in rendered
+        assert '"tool": "terminal"' not in rendered
+
+    def test_approval_display_unpacks_web_search_payload(self):
+        cli = _make_cli_stub()
+        payload = {
+            "tool": "web_search",
+            "query": "vibroacoustic shock response spectrum OP2 HDF5",
+            "limit": 5,
+            "backend": "duckduckgo",
+            "provider": "local-search",
+        }
+        cli._approval_state = {
+            "command": json.dumps(payload, indent=2),
+            "description": (
+                "Outbound web search request. The request details shown here "
+                "will be sent to the selected search provider."
+            ),
+            "choices": ["once", "session", "deny", "view"],
+            "selected": 0,
+            "response_queue": queue.Queue(),
+        }
+
+        fragments = cli._get_approval_display_fragments()
+        rendered = "".join(text for _style, text in fragments)
+
+        assert "Outbound Web Search" in rendered
+        assert "AVA is asking to search the web." in rendered
+        assert "This would use: local-search" in rendered
+        assert "Search backend: duckduckgo" in rendered
+        assert "This is what AVA was going to query the web for:" in rendered
+        assert "vibroacoustic shock response spectrum OP2 HDF5" in rendered
+        assert "Number of results requested: 5" in rendered
+        assert "web_search" not in rendered
+        assert '"query"' not in rendered
+
+    def test_approval_display_shows_exact_web_search_payload_after_view(self):
+        cli = _make_cli_stub()
+        payload = {
+            "tool": "web_search",
+            "query": "vibroacoustic shock response spectrum OP2 HDF5",
+            "limit": 5,
+            "backend": "duckduckgo",
+            "provider": "local-search",
+        }
+        cli._approval_state = {
+            "command": json.dumps(payload, indent=2),
+            "description": "Outbound web search request.",
+            "choices": ["once", "session", "deny"],
+            "selected": 0,
+            "show_full": True,
+            "response_queue": queue.Queue(),
+        }
+
+        fragments = cli._get_approval_display_fragments()
+        rendered = "".join(text for _style, text in fragments)
+
+        assert "Full search request:" in rendered
+        assert '"tool": "web_search"' in rendered
+        assert '"query": "vibroacoustic shock response spectrum OP2 HDF5"' in rendered
 
     def test_approval_display_preserves_command_and_choices_with_long_description(self):
         """Regression: long tirith descriptions used to push approve/deny off-screen.

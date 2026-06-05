@@ -2147,9 +2147,9 @@ def check_web_search_approval(
 
     command = _web_search_approval_payload(query, limit, backend, provider_name)
     description = (
-        "Outbound web search request. The JSON shown here is the data that "
-        "will be sent to the selected search provider. Approve only if this "
-        "query is OK to leave this machine."
+        "Outbound web search request. The request details shown here are the "
+        "data that will be sent to the selected search provider. Approve only "
+        "if this query is OK to leave this machine."
     )
 
     if is_gateway or is_ask:
