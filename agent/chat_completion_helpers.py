@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -120,6 +121,67 @@ def _env_float(name: str, default: float) -> float:
         return float(os.getenv(name, str(default)))
     except (TypeError, ValueError):
         return default
+
+
+def _positive_finite_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0 or not math.isfinite(parsed):
+        return None
+    return parsed
+
+
+def _codex_stream_timeout_for_watchdogs(
+    api_kwargs: dict,
+    *,
+    ttfb_enabled: bool,
+    ttfb_timeout: float,
+    idle_enabled: bool,
+    idle_timeout: float,
+    stale_timeout: float,
+) -> Any:
+    """Build a per-request httpx timeout for Codex Responses streams.
+
+    The outer watchdog can ask a worker thread to abort a stale stream, but
+    cross-thread abort is intentionally conservative and only shuts sockets
+    down; the SDK read may not always unwind immediately. A bounded socket
+    read timeout gives the retry loop a deterministic upper bound while still
+    preserving the longer stale timeout used when TTFB is disabled for large
+    Codex requests.
+    """
+    import httpx as _httpx
+
+    request_timeout = _positive_finite_float(api_kwargs.get("timeout")) or 1800.0
+    connect_timeout = min(request_timeout, 30.0)
+
+    read_candidates = []
+    if ttfb_enabled:
+        read_candidates.append(ttfb_timeout)
+    else:
+        read_candidates.append(stale_timeout)
+    if idle_enabled:
+        read_candidates.append(idle_timeout)
+
+    read_timeout = max(
+        (
+            candidate
+            for candidate in (_positive_finite_float(value) for value in read_candidates)
+            if candidate is not None
+        ),
+        default=min(request_timeout, 120.0),
+    )
+    read_timeout = min(request_timeout, max(5.0, read_timeout))
+
+    return _httpx.Timeout(
+        connect=connect_timeout,
+        read=read_timeout,
+        write=request_timeout,
+        pool=connect_timeout,
+    )
 
 
 def interruptible_api_call(agent, api_kwargs: dict):
@@ -331,6 +393,27 @@ def interruptible_api_call(agent, api_kwargs: dict):
         # call on this agent can't be misread as first-byte for this one.
         agent._codex_stream_last_event_ts = None
         agent._codex_stream_last_progress_ts = None
+        if _openai_codex_backend:
+            api_kwargs = dict(api_kwargs)
+            api_kwargs["timeout"] = _codex_stream_timeout_for_watchdogs(
+                api_kwargs,
+                ttfb_enabled=_ttfb_enabled,
+                ttfb_timeout=_ttfb_timeout,
+                idle_enabled=_codex_idle_enabled,
+                idle_timeout=_codex_idle_timeout,
+                stale_timeout=_stale_timeout,
+            )
+            _timeout = api_kwargs["timeout"]
+            logger.debug(
+                "Applied Codex stream socket timeout "
+                "(connect=%.0fs, read=%.0fs, write=%.0fs, pool=%.0fs, "
+                "context=~%s tokens).",
+                _timeout.connect or 0.0,
+                _timeout.read or 0.0,
+                _timeout.write or 0.0,
+                _timeout.pool or 0.0,
+                f"{_est_tokens_for_codex_watchdog:,}",
+            )
 
     _call_start = time.time()
     agent._touch_activity("waiting for non-streaming API response")

@@ -300,6 +300,59 @@ def test_build_api_kwargs_codex(monkeypatch):
     assert "extra_body" not in kwargs
 
 
+def test_interruptible_codex_call_applies_watchdog_read_timeout(monkeypatch):
+    monkeypatch.setenv("HERMES_CODEX_TTFB_TIMEOUT_SECONDS", "30")
+    monkeypatch.setenv("HERMES_CODEX_EVENT_STALE_TIMEOUT_SECONDS", "7")
+
+    agent = _build_agent(monkeypatch)
+    request_client = object()
+    captured = {}
+
+    def fake_create_request_client(*, reason, api_kwargs=None):
+        captured["create_reason"] = reason
+        captured["create_timeout"] = (api_kwargs or {}).get("timeout")
+        return request_client
+
+    def fake_run_codex_stream(api_kwargs, client=None, on_first_delta=None):
+        captured["stream_timeout"] = api_kwargs.get("timeout")
+        captured["stream_client"] = client
+        return _codex_message_response("ok")
+
+    agent._create_request_openai_client = fake_create_request_client
+    agent._close_request_openai_client = lambda client, *, reason: None
+    agent._abort_request_openai_client = lambda client, *, reason: None
+    agent._run_codex_stream = fake_run_codex_stream
+
+    kwargs = _codex_request_kwargs()
+    kwargs["timeout"] = 600.0
+    response = agent._interruptible_api_call(kwargs)
+
+    timeout = captured["stream_timeout"]
+    assert response.output[0].content[0].text == "ok"
+    assert captured["create_reason"] == "codex_stream_request"
+    assert captured["stream_client"] is request_client
+    assert captured["create_timeout"] is timeout
+    assert timeout.connect == 30.0
+    assert timeout.read == 30.0
+    assert timeout.write == 600.0
+    assert timeout.pool == 30.0
+
+
+def test_codex_stream_timeout_uses_stale_timeout_when_ttfb_disabled():
+    from agent.chat_completion_helpers import _codex_stream_timeout_for_watchdogs
+
+    timeout = _codex_stream_timeout_for_watchdogs(
+        {"timeout": 1800.0},
+        ttfb_enabled=False,
+        ttfb_timeout=120.0,
+        idle_enabled=True,
+        idle_timeout=60.0,
+        stale_timeout=600.0,
+    )
+
+    assert timeout.read == 600.0
+
+
 def test_build_api_kwargs_codex_clamps_minimal_effort(monkeypatch):
     """'minimal' reasoning effort is clamped to 'low' on the Responses API.
 
