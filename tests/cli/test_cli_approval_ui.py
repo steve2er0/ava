@@ -213,14 +213,14 @@ class TestCliApprovalUi:
         assert "AVA is asking to send data to the internet." in rendered
         assert "This would contact:" in rendered
         assert "https://duckduckgo.com/html/?q=shock+srs" in rendered
-        assert "This is the command AVA is asking to run:" in rendered
-        assert "A Python command that would make a web request." in rendered
+        assert "This is the command AVA is asking to run:" not in rendered
+        assert "A Python command that would make a web request." not in rendered
+        assert "Select Show full command" not in rendered
         assert "python3" not in rendered
         assert "urllib.request.urlopen" not in rendered
         assert "network_egress" not in rendered
         assert '"tool": "terminal"' not in rendered
-        assert rendered.index("This would contact:") < rendered.index("This is the command")
-        assert rendered.index("This is the command") < rendered.index("Allow once")
+        assert rendered.index("This would contact:") < rendered.index("Allow once")
         assert "Show full command" in rendered
 
     def test_approval_display_shows_exact_network_command_after_view(self):

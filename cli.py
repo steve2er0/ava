@@ -11834,23 +11834,6 @@ class HermesCLI:
                 return text
             return text[:limit].rstrip() + "..."
 
-        def _terminal_request_summary(shell_text: str, operations: list[str]) -> str:
-            op_text = " ".join(operations).lower()
-            first_line = next((line.strip() for line in str(shell_text or "").splitlines() if line.strip()), "")
-            first_word = first_line.split(None, 1)[0].strip("'\"") if first_line else ""
-            executable = Path(first_word).name.lower()
-
-            if "python" in op_text or executable.startswith("python"):
-                return "A Python command that would make a web request."
-            if executable in {"curl", "wget", "http", "https"} or "http client" in op_text:
-                name = executable.upper() if executable in {"http", "https"} else executable
-                return f"A {name or 'terminal'} command that would make a web request."
-            if executable == "git" or "git" in op_text:
-                return "A git command that would contact a remote repository."
-            if executable in {"pip", "pip3", "uv", "npm", "pnpm", "yarn", "gem", "cargo"}:
-                return f"A {executable} command that would contact a package registry."
-            return "A terminal command that would contact the internet."
-
         def _wrap_rows(rows: list[tuple[str, str]], width: int) -> list[tuple[str, str]]:
             wrapped_rows: list[tuple[str, str]] = []
             for style, text in rows:
@@ -11868,19 +11851,18 @@ class HermesCLI:
         show_full = state.get("show_full", False)
 
         title = "⚠️  Dangerous Command"
-        command_label = "This is the command AVA is asking to run:"
+        command_label: str | None = "This is the command AVA is asking to run:"
         command_preview_limit = 70
-        command_text = str(command or "")
+        command_text: str | None = str(command or "")
         pre_command_rows: list[tuple[str, str]] = []
         post_command_rows: list[tuple[str, str]] = []
         optional_rows: list[tuple[str, str]] = []
 
-        payload = _parse_structured_payload(command_text)
+        payload = _parse_structured_payload(command_text or "")
         if payload and payload.get("tool") == "terminal" and payload.get("network_egress") is True:
             title = "⚠️  Outbound Network Request"
-            exact_command_text = str(payload.get("command") or command_text)
+            exact_command_text = str(payload.get("command") or command_text or "")
             destinations = _string_list(payload.get("destinations"))
-            operations = _string_list(payload.get("matched_operations") or payload.get("operations"))
 
             pre_command_rows.append((
                 "class:approval-desc",
@@ -11899,14 +11881,8 @@ class HermesCLI:
                 command_label = "Full terminal command:"
                 command_text = exact_command_text
             else:
-                command_label = "This is the command AVA is asking to run:"
-                command_text = _terminal_request_summary(exact_command_text, operations)
-                command_preview_limit = 240
-                if "view" in choices:
-                    post_command_rows.append((
-                        "class:approval-desc",
-                        "Select Show full command to inspect the exact terminal text.",
-                    ))
+                command_label = None
+                command_text = None
             note = str(payload.get("note") or "").strip()
             if note and show_full:
                 optional_rows.append(("class:approval-desc", "Note: " + note))
@@ -11943,7 +11919,7 @@ class HermesCLI:
             if description:
                 optional_rows.append(("class:approval-desc", str(description)))
 
-        cmd_display = _preview_text(command_text, command_preview_limit)
+        cmd_display = _preview_text(command_text or "", command_preview_limit) if command_text is not None else None
         choice_labels = {
             "once": "Allow once",
             "session": "Allow for this session",
@@ -11955,8 +11931,10 @@ class HermesCLI:
         preview_lines = []
         for _style, text in pre_command_rows:
             preview_lines.extend(_wrap_panel_text(text, 60))
-        preview_lines.extend(_wrap_panel_text(command_label, 60))
-        preview_lines.extend(_wrap_panel_text(cmd_display, 60))
+        if command_label:
+            preview_lines.extend(_wrap_panel_text(command_label, 60))
+        if cmd_display is not None:
+            preview_lines.extend(_wrap_panel_text(cmd_display, 60))
         for _style, text in post_command_rows:
             preview_lines.extend(_wrap_panel_text(text, 60))
         for _style, text in optional_rows:
@@ -11975,8 +11953,14 @@ class HermesCLI:
         # Pre-wrap the mandatory content — request details, command/query, and
         # choices must always render before optional explanatory text.
         pre_command_wrapped = _wrap_rows(pre_command_rows, inner_text_width)
-        command_label_wrapped = _wrap_rows([("class:approval-desc", command_label)], inner_text_width)
-        cmd_wrapped = _wrap_rows([("class:approval-cmd", cmd_display)], inner_text_width)
+        command_label_wrapped = (
+            _wrap_rows([("class:approval-desc", command_label)], inner_text_width)
+            if command_label else []
+        )
+        cmd_wrapped = (
+            _wrap_rows([("class:approval-cmd", cmd_display)], inner_text_width)
+            if cmd_display is not None else []
+        )
         post_command_wrapped = _wrap_rows(post_command_rows, inner_text_width)
 
         # (choice_index, wrapped_line) so we can re-apply selected styling below
