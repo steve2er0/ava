@@ -178,6 +178,8 @@ def build_tool_preview(tool_name: str, args: dict, max_len: int | None = None) -
         max_len = _tool_preview_max_len
     if not args:
         return None
+    if tool_name == "terminal":
+        return "terminal command"
     primary_args = {
         "terminal": "command", "web_search": "query", "web_extract": "urls",
         "read_file": "path", "write_file": "path", "patch": "path",
@@ -803,6 +805,8 @@ def _trim_error(msg: str) -> str:
         tail = tail.strip()
         if "/" in tail:
             msg = f"File not found: {tail.rsplit('/', 1)[-1]}"
+    if msg.lower().startswith("command not found:"):
+        msg = "command not found"
     if len(msg) > _ERROR_SUFFIX_MAX_LEN:
         msg = msg[: _ERROR_SUFFIX_MAX_LEN - 3] + "..."
     return msg
@@ -825,7 +829,14 @@ def _detect_tool_failure(tool_name: str, result: str | None) -> tuple[bool, str]
 
     # Terminal: non-zero exit code is the canonical failure signal.
     if tool_name == "terminal":
+        if isinstance(result, str) and result.startswith("BLOCKED:"):
+            lowered = result.lower()
+            return True, " [denied]" if "denied" in lowered else " [blocked]"
         if isinstance(data, dict):
+            status = str(data.get("status") or "").lower()
+            if status == "blocked":
+                err_text = str(data.get("error") or "")
+                return True, " [denied]" if "denied" in err_text.lower() else " [blocked]"
             exit_code = data.get("exit_code")
             if exit_code is not None and exit_code != 0:
                 err_msg = data.get("error")
@@ -905,7 +916,7 @@ def get_cute_tool_message(
             return _wrap(f"┊ 📄 fetch     {_trunc(domain, 35)}{extra}  {dur}")
         return _wrap(f"┊ 📄 fetch     pages  {dur}")
     if tool_name == "terminal":
-        return _wrap(f"┊ 💻 $         {_trunc(args.get('command', ''), 42)}  {dur}")
+        return _wrap(f"┊ 💻 terminal  {dur}")
     if tool_name == "process":
         action = args.get("action", "?")
         sid = args.get("session_id", "")[:12]
@@ -1029,5 +1040,3 @@ def get_cute_tool_message(
 # =========================================================================
 # Honcho session line (one-liner with clickable OSC 8 hyperlink)
 # =========================================================================
-
-

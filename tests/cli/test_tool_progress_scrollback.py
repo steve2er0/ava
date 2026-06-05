@@ -74,8 +74,9 @@ class TestToolProgressScrollback:
 
         mock_print.assert_called_once()
         line = mock_print.call_args[0][0]
-        # Should contain tool info (the cute message format has "git log" for terminal)
-        assert "git log" in line or "$" in line
+        assert "terminal" in line
+        assert "git log" not in line
+        assert "$" not in line
 
     def test_all_mode_prints_every_call(self):
         """In 'all' mode, consecutive calls to the same tool each get a line."""
@@ -144,8 +145,9 @@ class TestToolProgressScrollback:
     def test_spinner_still_updates_on_started(self):
         """tool.started still updates the spinner text for live display."""
         cli = _make_cli(tool_progress="all")
-        cli._on_tool_progress("tool.started", "terminal", "git status", {"command": "git status"})
-        assert "git status" in cli._spinner_text
+        cli._on_tool_progress("tool.started", "terminal", "terminal command", {"command": "git status"})
+        assert "terminal command" in cli._spinner_text
+        assert "git status" not in cli._spinner_text
 
     def test_spinner_timer_clears_on_completed(self):
         """tool.completed still clears the tool timer."""

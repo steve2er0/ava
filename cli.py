@@ -11052,7 +11052,7 @@ class HermesCLI:
         if function_name and not function_name.startswith("_"):
             from agent.display import get_tool_emoji
             emoji = get_tool_emoji(function_name)
-            label = preview or function_name
+            label = "terminal command" if function_name == "terminal" else (preview or function_name)
             from agent.display import get_tool_preview_max_len
             _pl = get_tool_preview_max_len()
             if _pl > 0 and len(label) > _pl:

@@ -37,8 +37,7 @@ class TestBuildToolPreview:
     def test_known_tool_with_primary_arg(self):
         """Known tool with its primary arg should return a preview string."""
         result = build_tool_preview("terminal", {"command": "ls -la"})
-        assert result is not None
-        assert "ls -la" in result
+        assert result == "terminal command"
 
     def test_web_search_preview(self):
         result = build_tool_preview("web_search", {"query": "hello world"})
@@ -65,8 +64,7 @@ class TestBuildToolPreview:
         """Preview should truncate long values."""
         long_cmd = "a" * 100
         result = build_tool_preview("terminal", {"command": long_cmd}, max_len=40)
-        assert result is not None
-        assert len(result) <= 43  # max_len + "..."
+        assert result == "terminal command"
 
     def test_process_tool_with_none_args(self):
         """Process tool special case should also handle None args."""
@@ -118,7 +116,8 @@ class TestCuteToolMessagePreviewLength:
 
         line = get_cute_tool_message("terminal", {"command": command}, 0.1)
 
-        assert command in line
+        assert command not in line
+        assert "terminal" in line
         assert "..." not in line
 
     def test_terminal_preview_uses_positive_configured_limit(self):
@@ -127,8 +126,9 @@ class TestCuteToolMessagePreviewLength:
 
         line = get_cute_tool_message("terminal", {"command": command}, 0.1)
 
-        assert command[:77] in line
-        assert "..." in line
+        assert command[:77] not in line
+        assert "terminal" in line
+        assert "..." not in line
         assert "head -5" not in line
 
     def test_search_files_preview_uses_positive_configured_limit_not_default(self):

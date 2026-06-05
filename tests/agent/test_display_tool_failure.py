@@ -42,6 +42,9 @@ class TestTrimError:
         # Without a slash there's no path to trim.
         assert _trim_error("File not found: foo.py") == "File not found: foo.py"
 
+    def test_command_not_found_hides_command_token(self):
+        assert _trim_error("command not found: notathing") == "command not found"
+
 
 class TestDetectToolFailureTerminal:
     """terminal: non-zero exit_code is the canonical failure signal."""
@@ -73,6 +76,21 @@ class TestDetectToolFailureTerminal:
         # Terminal is special: only exit_code matters. Malformed JSON should
         # not crash and should not be flagged as failure.
         assert _detect_tool_failure("terminal", "not json") == (False, "")
+
+    def test_blocked_terminal_result_shows_denied_suffix(self):
+        result = json.dumps({
+            "output": "",
+            "exit_code": -1,
+            "error": "BLOCKED: User denied this command. The user has NOT consented.",
+            "status": "blocked",
+        })
+
+        assert _detect_tool_failure("terminal", result) == (True, " [denied]")
+
+    def test_raw_blocked_terminal_result_shows_denied_suffix(self):
+        result = "BLOCKED: User denied this command. The user has NOT consented."
+
+        assert _detect_tool_failure("terminal", result) == (True, " [denied]")
 
     def test_none_result_returns_no_suffix(self):
         assert _detect_tool_failure("terminal", None) == (False, "")
@@ -150,6 +168,7 @@ class TestGetCuteToolMessageFailureSuffix:
         fail = json.dumps({"output": "", "exit_code": 2})
         line = get_cute_tool_message("terminal", {"command": "false"}, 0.1, result=fail)
         assert "[exit 2]" in line
+        assert "false" not in line
 
     def test_terminal_with_stderr_uses_message(self):
         fail = json.dumps({
@@ -159,8 +178,25 @@ class TestGetCuteToolMessageFailureSuffix:
         })
         line = get_cute_tool_message("terminal", {"command": "notathing"}, 0.1, result=fail)
         assert "command not found" in line
+        assert "notathing" not in line
         # No '[exit 127]' tag when we have a specific message
         assert "exit 127" not in line
+
+    def test_terminal_denied_line_hides_command_and_long_block_reason(self):
+        fail = json.dumps({
+            "output": "",
+            "exit_code": -1,
+            "error": "BLOCKED: User denied this command. The user has NOT consented.",
+            "status": "blocked",
+        })
+        command = "python3 - <<'PY'\nimport urllib.request\nPY"
+
+        line = get_cute_tool_message("terminal", {"command": command}, 10.9, result=fail)
+
+        assert "python3" not in line
+        assert "urllib.request" not in line
+        assert "BLOCKED:" not in line
+        assert "[denied]" in line
 
     def test_memory_full_suffix(self):
         fail = json.dumps({"success": False, "error": "would exceed the limit"})
