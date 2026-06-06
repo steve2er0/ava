@@ -1358,6 +1358,76 @@ def test_config_set_fast_status_is_non_mutating(monkeypatch):
         server._sessions.pop("sid", None)
 
 
+def test_config_set_llm_exposure_updates_live_agent_and_config(monkeypatch):
+    writes = []
+    agent = types.SimpleNamespace(llm_exposure="full")
+    server._sessions["sid"] = _session(agent=agent)
+
+    monkeypatch.setattr(
+        server, "_write_config_key", lambda path, value: writes.append((path, value))
+    )
+
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "config.set",
+                "params": {
+                    "session_id": "sid",
+                    "key": "llm_exposure",
+                    "value": "minimal",
+                },
+            }
+        )
+        assert resp["result"]["value"] == "minimal"
+        assert agent.llm_exposure == "minimal"
+        assert ("security.llm_exposure", "minimal") in writes
+
+        status = server.handle_request(
+            {
+                "id": "2",
+                "method": "config.set",
+                "params": {
+                    "session_id": "sid",
+                    "key": "llm-exposure",
+                    "value": "status",
+                },
+            }
+        )
+        assert status["result"]["value"] == "minimal"
+    finally:
+        server._sessions.pop("sid", None)
+
+
+def test_slash_exec_llm_exposure_bypasses_stale_worker(monkeypatch):
+    writes = []
+    agent = types.SimpleNamespace(llm_exposure="full")
+
+    class _StaleWorker:
+        def run(self, _cmd):
+            raise AssertionError("stale worker should not execute /llm-exposure")
+
+    server._sessions["sid"] = _session(agent=agent, slash_worker=_StaleWorker())
+    monkeypatch.setattr(
+        server, "_write_config_key", lambda path, value: writes.append((path, value))
+    )
+
+    try:
+        resp = server.handle_request(
+            {
+                "id": "1",
+                "method": "slash.exec",
+                "params": {"session_id": "sid", "command": "llm-exposure minimal"},
+            }
+        )
+        output = resp["result"]["output"]
+        assert "LLM exposure set to 'minimal'" in output
+        assert agent.llm_exposure == "minimal"
+        assert ("security.llm_exposure", "minimal") in writes
+    finally:
+        server._sessions.pop("sid", None)
+
+
 def test_config_set_fast_rejects_unsupported_model(monkeypatch):
     writes = []
     agent = types.SimpleNamespace(

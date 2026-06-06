@@ -953,6 +953,45 @@ def _write_config_key(key_path: str, value):
     _save_cfg(cfg)
 
 
+def _current_llm_exposure(session: dict | None = None) -> str:
+    from agent.llm_exposure import LLM_EXPOSURE_FULL, normalize_llm_exposure
+
+    agent = session.get("agent") if session else None
+    if agent is not None and hasattr(agent, "llm_exposure"):
+        return normalize_llm_exposure(getattr(agent, "llm_exposure", LLM_EXPOSURE_FULL))
+    security = _load_cfg().get("security") or {}
+    if not isinstance(security, dict):
+        security = {}
+    return normalize_llm_exposure(security.get("llm_exposure", LLM_EXPOSURE_FULL))
+
+
+def _llm_exposure_status_text(mode: str) -> str:
+    from agent.llm_exposure import LLM_EXPOSURE_MINIMAL
+
+    if mode == LLM_EXPOSURE_MINIMAL:
+        detail = "raw tool results are kept local; the model sees protected-output metadata"
+    else:
+        detail = "raw tool results are sent to the active model normally"
+    return f"LLM exposure: {mode}\n{detail}\nUsage: /llm-exposure [full|minimal|status]"
+
+
+def _set_llm_exposure(session: dict | None, value: str) -> str:
+    from agent.llm_exposure import (
+        LLM_EXPOSURE_FULL,
+        LLM_EXPOSURE_MINIMAL,
+        normalize_llm_exposure,
+    )
+
+    mode = normalize_llm_exposure(value)
+    if mode not in {LLM_EXPOSURE_FULL, LLM_EXPOSURE_MINIMAL}:
+        raise ValueError(f"unknown LLM exposure mode: {value}")
+    _write_config_key("security.llm_exposure", mode)
+    agent = session.get("agent") if session else None
+    if agent is not None:
+        agent.llm_exposure = mode
+    return mode
+
+
 _STATUSBAR_MODES = frozenset({"off", "top", "bottom"})
 
 
@@ -4928,6 +4967,15 @@ def _(rid, params: dict) -> dict:
         _write_config_key("display.busy_input_mode", raw)
         return _ok(rid, {"key": key, "value": raw})
 
+    if key in {"llm_exposure", "llm-exposure"}:
+        raw = str(value or "").strip().lower()
+        if raw in {"", "status"}:
+            return _ok(rid, {"key": key, "value": _current_llm_exposure(session)})
+        if raw not in {"full", "minimal"}:
+            return _err(rid, 4002, f"unknown LLM exposure mode: {value}")
+        nv = _set_llm_exposure(session, raw)
+        return _ok(rid, {"key": key, "value": nv})
+
     if key == "verbose":
         cycle = ["off", "new", "all", "verbose"]
         cur = (
@@ -6841,6 +6889,35 @@ def _(rid, params: dict) -> dict:
     _cmd_parts = _cmd_text.split(maxsplit=1)
     _cmd_base = (_cmd_parts[0] if _cmd_parts else "").lower()
     _cmd_arg = _cmd_parts[1] if len(_cmd_parts) > 1 else ""
+
+    if _cmd_base in {"llm-exposure", "llm_exposure"}:
+        raw = _cmd_arg.strip().lower()
+        if raw in {"", "status"}:
+            mode = _current_llm_exposure(session)
+            return _ok(rid, {"output": _llm_exposure_status_text(mode)})
+        if raw not in {"full", "minimal"}:
+            return _ok(
+                rid,
+                {
+                    "output": (
+                        f"Unknown argument: {raw}\n"
+                        "Usage: /llm-exposure [full|minimal|status]"
+                    )
+                },
+            )
+        mode = _set_llm_exposure(session, raw)
+        if mode == "minimal":
+            detail = "Raw tool results will stay local unless you approve a protected-output read."
+        else:
+            detail = "Tool results will be sent to the active model normally."
+        return _ok(
+            rid,
+            {
+                "output": (
+                    f"LLM exposure set to '{mode}' (saved to config)\n{detail}"
+                )
+            },
+        )
 
     if _cmd_base in _PENDING_INPUT_COMMANDS:
         return _err(
