@@ -3368,6 +3368,24 @@ def test_mirror_slash_side_effects_allowed_when_idle(monkeypatch):
     assert applied["model"]
 
 
+def test_mirror_slash_side_effects_updates_llm_exposure():
+    import types
+
+    agent = types.SimpleNamespace(llm_exposure="full")
+    session = _session(running=False)
+    session["agent"] = agent
+
+    warning = server._mirror_slash_side_effects("sid", session, "/llm-exposure minimal")
+    assert warning == ""
+    assert agent.llm_exposure == "minimal"
+
+    server._mirror_slash_side_effects("sid", session, "/llm_exposure full")
+    assert agent.llm_exposure == "full"
+
+    server._mirror_slash_side_effects("sid", session, "/llm-exposure status")
+    assert agent.llm_exposure == "full"
+
+
 def test_mirror_slash_compress_does_not_prelock_history(monkeypatch):
     """Regression guard: /compress side effect must not hold history_lock
     when calling _compress_session_history (the helper snapshots under

@@ -13,6 +13,7 @@ describe('desktop slash command curation', () => {
   it('keeps core desktop chat commands in suggestions', () => {
     expect(isDesktopSlashSuggestion('/new')).toBe(true)
     expect(isDesktopSlashSuggestion('/branch')).toBe(true)
+    expect(isDesktopSlashSuggestion('/llm-exposure')).toBe(true)
     expect(isDesktopSlashSuggestion('/skin')).toBe(true)
     expect(isDesktopSlashSuggestion('/usage')).toBe(true)
   })
@@ -36,6 +37,8 @@ describe('desktop slash command curation', () => {
   it('allows aliases to execute without cluttering the popover', () => {
     expect(isDesktopSlashSuggestion('/reset')).toBe(false)
     expect(isDesktopSlashCommand('/reset')).toBe(true)
+    expect(isDesktopSlashSuggestion('/llm_exposure')).toBe(false)
+    expect(isDesktopSlashCommand('/llm_exposure')).toBe(true)
   })
 
   it('filters command catalogs down to core desktop commands', () => {
@@ -72,6 +75,9 @@ describe('desktop slash command curation', () => {
     )
     expect(desktopSlashDescription('/skin', 'Show or change the display skin/theme')).toBe(
       'Switch desktop theme or cycle to the next one'
+    )
+    expect(desktopSlashDescription('/llm-exposure', 'Control LLM exposure')).toBe(
+      'Control raw tool-output exposure to the active LLM'
     )
   })
 

@@ -6808,6 +6808,10 @@ def _mirror_slash_side_effects(sid: str, session: dict, command: str) -> str:
             elif mode in {"normal", "off"}:
                 agent.service_tier = None
             _emit("session.info", sid, _session_info(agent, session))
+        elif name in {"llm-exposure", "llm_exposure"} and agent:
+            mode = arg.lower()
+            if mode in {"full", "minimal"}:
+                agent.llm_exposure = mode
         elif name == "reload-mcp" and agent and hasattr(agent, "reload_mcp_tools"):
             agent.reload_mcp_tools()
         elif name == "stop":
