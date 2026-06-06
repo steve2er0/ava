@@ -11406,7 +11406,7 @@ _BUILTIN_SUBCOMMANDS = frozenset(
         "model", "pairing", "plugins", "portal", "postinstall", "profile", "proxy",
         "prompt-size",
         "send", "sessions", "setup",
-        "skills", "slack", "status", "tools", "uninstall", "update",
+        "skills", "slack", "status", "tool-config", "tools", "uninstall", "update",
         "version", "webhook", "whatsapp", "chat", "secrets", "security",
         # Help-ish invocations — plugin commands not being listed in
         # top-level --help is an acceptable trade-off for skipping an
@@ -13627,6 +13627,59 @@ Examples:
             memory_command(args)
 
     memory_parser.set_defaults(func=cmd_memory)
+
+    # =========================================================================
+    # tool-config command
+    # =========================================================================
+    tool_config_parser = subparsers.add_parser(
+        "tool-config",
+        help="Configure enterprise application executable paths",
+        description=(
+            "Configure exact executable paths for enterprise tools such as "
+            "Nastran, MATLAB, Office apps, VA One, Wave6, and Chrome. "
+            "Hermes never scans the PC for these executables."
+        ),
+    )
+    tool_config_sub = tool_config_parser.add_subparsers(dest="tool_config_action")
+
+    tool_config_sub.add_parser(
+        "list",
+        help="Show configured enterprise tool paths",
+    )
+
+    tool_config_set_p = tool_config_sub.add_parser(
+        "set",
+        help="Set an exact executable path for a tool",
+    )
+    tool_config_set_p.add_argument("tool", help="Tool name, e.g. matlab or excel")
+    tool_config_set_p.add_argument(
+        "path",
+        nargs="+",
+        help="Absolute executable path. Quote paths with spaces in a shell.",
+    )
+
+    tool_config_remove_p = tool_config_sub.add_parser(
+        "remove",
+        help="Remove a configured enterprise tool path",
+    )
+    tool_config_remove_p.add_argument("tool", help="Tool name to remove")
+
+    tool_config_validate_p = tool_config_sub.add_parser(
+        "validate",
+        help="Validate configured enterprise tool paths",
+    )
+    tool_config_validate_p.add_argument(
+        "tool",
+        nargs="?",
+        help="Optional tool name. Omit to validate all tools.",
+    )
+
+    def cmd_tool_config(args):
+        from hermes_cli.tool_config import tool_config_command
+
+        tool_config_command(args)
+
+    tool_config_parser.set_defaults(func=cmd_tool_config)
 
     # =========================================================================
     # tools command

@@ -990,6 +990,76 @@ DEFAULT_CONFIG = {
         },
     },
 
+    # Enterprise/local application executable paths. These are explicit
+    # allowlist entries: Ava never scans the PC or mutates PATH to find them.
+    # Configure with `hermes tool-config` locally or `/tool_config` in gateway.
+    "external_tools": {
+        "nastran": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "matlab": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "excel": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "powerpoint": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "word": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "vaone": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "wave6": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+        "chrome": {
+            "enabled": False,
+            "executable_path": "",
+            "working_dir": "",
+            "default_args": [],
+            "env": {},
+            "last_validated_at": "",
+        },
+    },
+
     # Filesystem checkpoints — automatic snapshots before destructive file ops.
     # When enabled, the agent takes a snapshot of the working directory once
     # per conversation turn (on first write_file/patch call).  Use /rollback

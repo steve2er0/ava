@@ -859,6 +859,7 @@ def _run_chrome_fallback_command(
     os.makedirs(task_socket_dir, mode=0o700, exist_ok=True)
     browser_env = {**os.environ, "AGENT_BROWSER_SOCKET_DIR": task_socket_dir}
     browser_env["PATH"] = _merge_browser_path(browser_env.get("PATH", ""))
+    _apply_configured_chrome_env(browser_env)
 
     if "AGENT_BROWSER_IDLE_TIMEOUT_MS" not in browser_env:
         browser_env["AGENT_BROWSER_IDLE_TIMEOUT_MS"] = str(BROWSER_SESSION_INACTIVITY_TIMEOUT * 1000)
@@ -1996,6 +1997,7 @@ def _run_browser_command(
         # Ensure subprocesses inherit the same browser-specific PATH fallbacks
         # used during CLI discovery.
         browser_env["PATH"] = _merge_browser_path(browser_env.get("PATH", ""))
+        _apply_configured_chrome_env(browser_env)
         browser_env["AGENT_BROWSER_SOCKET_DIR"] = task_socket_dir
 
         # Tell the agent-browser daemon to self-terminate after being idle
@@ -3539,6 +3541,32 @@ def cleanup_all_browsers() -> None:
 _cached_chromium_installed: Optional[bool] = None
 
 
+def _configured_chrome_executable_path() -> str:
+    """Return the explicitly configured Chrome path, if valid."""
+    try:
+        from tools.external_tool_config import (
+            ExternalToolConfigError,
+            resolve_external_tool,
+        )
+
+        resolved = resolve_external_tool("chrome")
+        return resolved.executable_path
+    except ExternalToolConfigError as exc:
+        logger.debug("Configured Chrome path unavailable: %s", exc)
+    except Exception as exc:
+        logger.debug("Could not read configured Chrome path: %s", exc)
+    return ""
+
+
+def _apply_configured_chrome_env(env: dict[str, str]) -> None:
+    """Point agent-browser at configured Chrome unless an env override exists."""
+    if env.get("AGENT_BROWSER_EXECUTABLE_PATH"):
+        return
+    configured = _configured_chrome_executable_path()
+    if configured:
+        env["AGENT_BROWSER_EXECUTABLE_PATH"] = configured
+
+
 def _chromium_search_roots() -> List[str]:
     """Directories to scan for a Chromium / headless-shell build.
 
@@ -3572,11 +3600,12 @@ def _chromium_installed() -> bool:
 
     Checks, in order:
 
-    1. ``AGENT_BROWSER_EXECUTABLE_PATH`` env var — the official way to point
+    1. ``external_tools.chrome`` config — enterprise explicit path.
+    2. ``AGENT_BROWSER_EXECUTABLE_PATH`` env var — the official way to point
        agent-browser at a pre-installed Chrome/Chromium.
-    2. System Chrome/Chromium in PATH (``google-chrome``, ``chromium``,
+    3. System Chrome/Chromium in PATH (``google-chrome``, ``chromium``,
        ``chromium-browser``, ``chrome``).
-    3. Playwright's browser cache (current logic) — directories containing
+    4. Playwright's browser cache (current logic) — directories containing
        ``chromium-*`` or ``chromium_headless_shell-*``.
 
     agent-browser (0.26+) downloads Playwright's chromium / headless-shell
@@ -3590,14 +3619,20 @@ def _chromium_installed() -> bool:
     if _cached_chromium_installed is not None:
         return _cached_chromium_installed
 
-    # 1. AGENT_BROWSER_EXECUTABLE_PATH — explicit user-configured browser
+    # 1. external_tools.chrome — explicit enterprise-configured browser
+    configured_chrome = _configured_chrome_executable_path()
+    if configured_chrome and os.path.isfile(configured_chrome):
+        _cached_chromium_installed = True
+        return True
+
+    # 2. AGENT_BROWSER_EXECUTABLE_PATH — explicit user-configured browser
     ab_path = os.environ.get("AGENT_BROWSER_EXECUTABLE_PATH", "").strip()
     if ab_path:
         if os.path.isfile(ab_path) or shutil.which(ab_path):
             _cached_chromium_installed = True
             return True
 
-    # 2. System Chrome/Chromium in PATH (common names)
+    # 3. System Chrome/Chromium in PATH (common names)
     system_chrome = (
         shutil.which("google-chrome")
         or shutil.which("chromium")
@@ -3608,7 +3643,7 @@ def _chromium_installed() -> bool:
         _cached_chromium_installed = True
         return True
 
-    # 3. Playwright browser cache (legacy — chromium-* / chromium_headless_shell-* dirs)
+    # 4. Playwright browser cache (legacy — chromium-* / chromium_headless_shell-* dirs)
     for root in _chromium_search_roots():
         if not root or not os.path.isdir(root):
             continue

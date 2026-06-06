@@ -50,6 +50,24 @@ class TestChromiumInstalled:
 
         assert bt._chromium_installed() is True
 
+    def test_true_when_chrome_configured_in_external_tools(self, monkeypatch, tmp_path):
+        from hermes_cli.config import load_config, save_config
+        from tools.external_tool_config import set_tool_path
+
+        chrome = tmp_path / "chrome.exe"
+        chrome.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        chrome.chmod(0o755)
+
+        monkeypatch.delenv("AGENT_BROWSER_EXECUTABLE_PATH", raising=False)
+        monkeypatch.setattr(bt.shutil, "which", lambda _name, path=None: None)
+        monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
+
+        config = load_config()
+        set_tool_path(config, "chrome", str(chrome))
+        save_config(config)
+
+        assert bt._chromium_installed() is True
+
     def test_true_when_chromium_dir_present(self, monkeypatch, tmp_path):
         monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(tmp_path))
         (tmp_path / "chromium-1208").mkdir()
@@ -115,5 +133,4 @@ class TestRunBrowserCommandChromiumGuard:
     """Verify _run_browser_command fails fast (no timeout hang) when
     Chromium is missing in local mode.
     """
-
 

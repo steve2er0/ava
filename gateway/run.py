@@ -7696,6 +7696,12 @@ class GatewayRunner:
             if _cmd_def_inner and _cmd_def_inner.name == "kanban":
                 return await self._handle_kanban_command(event)
 
+            # /tool_config is control-plane config, not an agent turn. Allow it
+            # while a run is active so admins can fix missing executable paths
+            # without interrupting long analyses.
+            if _cmd_def_inner and _cmd_def_inner.name == "tool_config":
+                return await self._handle_tool_config_command(event)
+
             # /goal is safe mid-run for status/pause/clear (inspection and
             # control-plane only — doesn't interrupt the running turn).
             # Setting a new goal text mid-run is rejected with the same
@@ -8039,6 +8045,9 @@ class GatewayRunner:
 
         if canonical == "kanban":
             return await self._handle_kanban_command(event)
+
+        if canonical == "tool_config":
+            return await self._handle_tool_config_command(event)
 
         if canonical == "retry":
             return await self._handle_retry_command(event)
@@ -10213,6 +10222,26 @@ class GatewayRunner:
         if len(output) > 3800:
             output = output[:3800] + "\n" + t("gateway.kanban.truncated_suffix")
         return output or t("gateway.kanban.no_output")
+
+    async def _handle_tool_config_command(self, event: MessageEvent) -> str:
+        """Handle /tool_config for enterprise executable path configuration."""
+        try:
+            from gateway.slash_access import policy_for_source
+
+            policy = policy_for_source(self.config, event.source)
+            if policy.enabled and not policy.is_admin(event.source.user_id):
+                return "Command `/tool_config` is admin-only here."
+        except Exception:
+            logger.debug("Could not resolve slash policy for /tool_config", exc_info=True)
+
+        raw_args = event.get_command_args().strip()
+        try:
+            from hermes_cli.tool_config import handle_tool_config_text
+
+            return await asyncio.to_thread(handle_tool_config_text, raw_args)
+        except Exception as exc:
+            logger.exception("/tool_config failed")
+            return f"Tool configuration error: {exc}"
 
     async def _handle_status_command(self, event: MessageEvent) -> str:
         """Handle /status command."""
