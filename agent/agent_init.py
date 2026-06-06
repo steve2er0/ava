@@ -32,6 +32,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse
 
 from agent.context_compressor import ContextCompressor
 from agent.iteration_budget import IterationBudget
+from agent.llm_exposure import normalize_llm_exposure
 from agent.memory_manager import StreamingContextScrubber
 from agent.model_metadata import (
     MINIMUM_CONTEXT_LENGTH,
@@ -199,6 +200,8 @@ def init_agent(
     checkpoint_max_snapshots: int = 20,
     checkpoint_max_total_size_mb: int = 500,
     checkpoint_max_file_size_mb: int = 10,
+    llm_exposure: str = None,
+    privacy_approval_callback: callable = None,
     pass_session_id: bool = False,
 ):
     """
@@ -270,6 +273,20 @@ def init_agent(
     agent._chat_type = chat_type
     agent._thread_id = thread_id
     agent._gateway_session_key = gateway_session_key  # Stable per-chat key (e.g. agent:main:telegram:dm:123)
+    if llm_exposure is None:
+        try:
+            from hermes_cli.config import load_config as _load_exposure_cfg
+
+            llm_exposure = cfg_get(
+                _load_exposure_cfg(),
+                "security",
+                "llm_exposure",
+                default="full",
+            )
+        except Exception:
+            llm_exposure = "full"
+    agent.llm_exposure = normalize_llm_exposure(llm_exposure)
+    agent.privacy_approval_callback = privacy_approval_callback
     # Pluggable print function — CLI replaces this with _cprint so that
     # raw ANSI status lines are routed through prompt_toolkit's renderer
     # instead of going directly to stdout where patch_stdout's StdoutProxy

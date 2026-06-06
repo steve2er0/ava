@@ -178,6 +178,48 @@ def maybe_persist_tool_result(
     )
 
 
+def persist_tool_result_content(
+    content: str,
+    tool_name: str,
+    tool_use_id: str,
+    env=None,
+) -> tuple[str | None, str]:
+    """Persist a full tool result and return ``(path, storage_kind)``.
+
+    Unlike :func:`maybe_persist_tool_result`, this never returns an inline
+    preview. It is used by ``security.llm_exposure: minimal`` where the whole
+    point is to keep raw output out of the next model request.
+    """
+    storage_dir = _resolve_storage_dir(env)
+    remote_path = f"{storage_dir}/{tool_use_id}.txt"
+
+    if env is not None:
+        try:
+            if _write_to_sandbox(content, remote_path, env):
+                logger.info(
+                    "Persisted protected tool result: %s (%s, %d chars -> %s)",
+                    tool_name, tool_use_id, len(content), remote_path,
+                )
+                return remote_path, "sandbox"
+        except Exception as exc:
+            logger.warning("Sandbox protected-output write failed for %s: %s", tool_use_id, exc)
+        return None, "unavailable"
+
+    try:
+        from agent.llm_exposure import local_write_fallback
+
+        if local_write_fallback(remote_path, content):
+            logger.info(
+                "Persisted protected tool result locally: %s (%s, %d chars -> %s)",
+                tool_name, tool_use_id, len(content), remote_path,
+            )
+            return remote_path, "local"
+    except Exception as exc:
+        logger.warning("Local protected-output write failed for %s: %s", tool_use_id, exc)
+
+    return None, "unavailable"
+
+
 def enforce_turn_budget(
     tool_messages: list[dict],
     env=None,

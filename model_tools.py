@@ -810,6 +810,7 @@ def handle_function_call(
     skip_pre_tool_call_hook: bool = False,
     enabled_toolsets: Optional[List[str]] = None,
     disabled_toolsets: Optional[List[str]] = None,
+    privacy_approval_callback=None,
 ) -> str:
     """
     Main function call dispatcher that routes calls to the tool registry.
@@ -909,6 +910,7 @@ def handle_function_call(
                 skip_pre_tool_call_hook=skip_pre_tool_call_hook,
                 enabled_toolsets=enabled_toolsets,
                 disabled_toolsets=disabled_toolsets,
+                privacy_approval_callback=privacy_approval_callback,
             )
 
     try:
@@ -973,21 +975,24 @@ def handle_function_call(
         # to wrap every tool manually.  We use monotonic() so the value is
         # unaffected by wall-clock adjustments during the call.
         _dispatch_start = time.monotonic()
-        if function_name == "execute_code":
-            # Prefer the caller-provided list so subagents can't overwrite
-            # the parent's tool set via the process-global.
-            sandbox_enabled = enabled_tools if enabled_tools is not None else _last_resolved_tool_names
-            result = registry.dispatch(
-                function_name, function_args,
-                task_id=task_id,
-                enabled_tools=sandbox_enabled,
-            )
-        else:
-            result = registry.dispatch(
-                function_name, function_args,
-                task_id=task_id,
-                user_task=user_task,
-            )
+        from agent.llm_exposure import privacy_approval_context
+
+        with privacy_approval_context(privacy_approval_callback):
+            if function_name == "execute_code":
+                # Prefer the caller-provided list so subagents can't overwrite
+                # the parent's tool set via the process-global.
+                sandbox_enabled = enabled_tools if enabled_tools is not None else _last_resolved_tool_names
+                result = registry.dispatch(
+                    function_name, function_args,
+                    task_id=task_id,
+                    enabled_tools=sandbox_enabled,
+                )
+            else:
+                result = registry.dispatch(
+                    function_name, function_args,
+                    task_id=task_id,
+                    user_task=user_task,
+                )
         duration_ms = int((time.monotonic() - _dispatch_start) * 1000)
 
         try:

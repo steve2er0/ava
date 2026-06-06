@@ -637,6 +637,20 @@ The older top-level `fallback_model` single-provider shape is still read for bac
 
 See [Fallback Providers](/user-guide/features/fallback-providers) for full details.
 
+## Security (config.yaml only)
+
+These go in `~/.hermes/config.yaml` under the `security` section:
+
+| Key | Description |
+|-----|-------------|
+| `llm_exposure` | `"full"` (default) sends normal tool results to the active model. `"minimal"` stores raw tool output locally and sends only status metadata plus a protected output path; reading that saved output requires user approval. |
+
+Enable minimal exposure with:
+
+```bash
+hermes config set security.llm_exposure minimal
+```
+
 ## Provider Routing (config.yaml only)
 
 These go in `~/.hermes/config.yaml` under the `provider_routing` section:

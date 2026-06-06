@@ -380,6 +380,8 @@ class AIAgent:
         checkpoint_max_snapshots: int = 20,
         checkpoint_max_total_size_mb: int = 500,
         checkpoint_max_file_size_mb: int = 10,
+        llm_exposure: str = None,
+        privacy_approval_callback: callable = None,
         pass_session_id: bool = False,
     ):
         """Forwarder — see ``agent.agent_init.init_agent``."""
@@ -450,6 +452,8 @@ class AIAgent:
             checkpoint_max_snapshots=checkpoint_max_snapshots,
             checkpoint_max_total_size_mb=checkpoint_max_total_size_mb,
             checkpoint_max_file_size_mb=checkpoint_max_file_size_mb,
+            llm_exposure=llm_exposure,
+            privacy_approval_callback=privacy_approval_callback,
             pass_session_id=pass_session_id,
         )
 

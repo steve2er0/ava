@@ -10,6 +10,12 @@ Sometimes you already know exactly what message you want to send. You don't need
 
 Hermes calls this **no-agent mode**. It's the cron system minus the LLM.
 
+If you still want Hermes to orchestrate tools but you do not want raw tool
+outputs sent back into model context, use `security.llm_exposure: minimal`
+instead. No-agent mode skips the model entirely on scheduled ticks; minimal
+exposure keeps the agent loop but stores raw outputs locally until you approve a
+read-back.
+
 <!-- ascii-guard-ignore -->
 ```
    ┌──────────────────┐          ┌──────────────────┐

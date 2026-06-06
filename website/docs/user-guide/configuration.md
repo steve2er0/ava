@@ -1585,6 +1585,7 @@ Pre-execution security scanning and secret redaction:
 ```yaml
 security:
   redact_secrets: true           # Redact API key patterns in tool output and logs (on by default)
+  llm_exposure: "full"           # "full" or "minimal" tool-output exposure to the LLM
   tirith_enabled: true           # Enable Tirith security scanning for terminal commands
   tirith_path: "tirith"          # Path to tirith binary (default: "tirith" in $PATH)
   tirith_timeout: 5              # Seconds to wait for tirith scan before timing out
@@ -1596,10 +1597,13 @@ security:
 ```
 
 - `redact_secrets` — when `true`, automatically detects and redacts patterns that look like API keys, tokens, and passwords in tool output before it enters the conversation context and logs. **On by default**. Set to `false` explicitly only when you need raw credential-like strings for debugging or redactor development.
+- `llm_exposure` — set to `"minimal"` to keep raw tool outputs local. The agent still plans and calls tools, but the model sees only a compact status envelope plus a saved local output path. If it later tries to read that saved output, Hermes asks you before exposing the content to the LLM. Enable it with `hermes config set security.llm_exposure minimal`.
 - `tirith_enabled` — when `true`, terminal commands are scanned by [Tirith](https://github.com/sheeki03/tirith) before execution to detect potentially dangerous operations.
 - `tirith_path` — path to the tirith binary. Set this if tirith is installed in a non-standard location.
 - `tirith_timeout` — maximum seconds to wait for a tirith scan. Commands proceed if the scan times out.
 - `tirith_fail_open` — when `true` (default), commands are allowed to execute if tirith is unavailable or fails. Set to `false` to block commands when tirith cannot verify them.
+
+`security.llm_exposure: minimal` is different from cron `no_agent=True`: minimal mode keeps the agent and LLM in the loop for orchestration, but withholds raw tool data. `no_agent=True` skips the agent entirely for scheduled script-only jobs.
 
 ## Website Blocklist
 

@@ -753,11 +753,34 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
         if block_error:
             return json.dumps({"error": block_error})
 
+        resolved_str = str(_resolved)
+
+        # ── Protected-output privacy gate ─────────────────────────────
+        # ``security.llm_exposure: minimal`` stores raw tool results locally
+        # and gives the model only a metadata envelope.  Reading one of those
+        # saved outputs is the explicit read-back escape hatch, so require the
+        # user-facing privacy approval callback before any content is loaded.
+        from agent.llm_exposure import (
+            approve_or_block_protected_read,
+            get_protected_output,
+            mark_read_result_approved,
+        )
+
+        protected_read_approved = False
+        protected = get_protected_output(path) or get_protected_output(resolved_str)
+        if protected is not None:
+            allowed, error_json = approve_or_block_protected_read(protected.path)
+            if not allowed:
+                return error_json or json.dumps({
+                    "error": "Protected tool output was not approved for LLM exposure.",
+                    "path": path,
+                }, ensure_ascii=False)
+            protected_read_approved = True
+
         # ── Dedup check ───────────────────────────────────────────────
         # If we already read this exact (path, offset, limit) and the
         # file hasn't been modified since, return a lightweight stub
         # instead of re-sending the same content.  Saves context tokens.
-        resolved_str = str(_resolved)
         dedup_key = (resolved_str, offset, limit)
         with _read_tracker_lock:
             task_data = _read_tracker.setdefault(task_id, {
@@ -925,7 +948,10 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
                 "If you are stuck in a loop, stop reading and proceed with writing or responding."
             )
 
-        return json.dumps(result_dict, ensure_ascii=False)
+        result_json = json.dumps(result_dict, ensure_ascii=False)
+        if protected_read_approved:
+            result_json = mark_read_result_approved(result_json, protected.path if protected else path)
+        return result_json
     except Exception as e:
         return tool_error(str(e))
 

@@ -445,6 +445,10 @@ def load_cli_config() -> Dict[str, Any]:
             "timeout": 300,    # Max seconds a sandbox script can run before being killed (5 min)
             "max_tool_calls": 50,  # Max RPC tool calls per execution
         },
+        "security": {
+            "redact_secrets": True,
+            "llm_exposure": "full",
+        },
         "auxiliary": {
             "vision": {
                 "provider": "auto",
@@ -3223,6 +3227,11 @@ class HermesCLI:
         self.checkpoint_max_total_size_mb = cp_cfg.get("max_total_size_mb", 500)
         self.checkpoint_max_file_size_mb = cp_cfg.get("max_file_size_mb", 10)
         self.pass_session_id = pass_session_id
+        from agent.llm_exposure import normalize_llm_exposure
+
+        self.llm_exposure = normalize_llm_exposure(
+            (CLI_CONFIG.get("security") or {}).get("llm_exposure", "full")
+        )
         # --ignore-rules: honor either the constructor flag or the env var set
         # by `hermes chat --ignore-rules` in hermes_cli/main.py. When true we
         # pass skip_context_files=True and skip_memory=True to AIAgent so
@@ -5143,6 +5152,8 @@ class HermesCLI:
                 checkpoint_max_snapshots=self.checkpoint_max_snapshots,
                 checkpoint_max_total_size_mb=self.checkpoint_max_total_size_mb,
                 checkpoint_max_file_size_mb=self.checkpoint_max_file_size_mb,
+                llm_exposure=self.llm_exposure,
+                privacy_approval_callback=self._privacy_approval_callback,
                 pass_session_id=self.pass_session_id,
                 skip_context_files=self.ignore_rules,
                 skip_memory=self.ignore_rules,
@@ -11625,6 +11636,26 @@ class HermesCLI:
             "The user did not provide a response within the time limit. "
             "Use your best judgement to make the choice and proceed."
         )
+
+    def _privacy_approval_callback(self, path: str, metadata: dict) -> str:
+        """Ask whether a protected local output may be exposed to the LLM."""
+        tool_name = metadata.get("tool_name") or "unknown tool"
+        size = metadata.get("content_length")
+        size_text = f"{size:,} characters" if isinstance(size, int) else "unknown size"
+        question = (
+            "Expose protected tool output to the LLM?\n\n"
+            f"Tool: {tool_name}\n"
+            f"Saved output: {path}\n"
+            f"Size: {size_text}"
+        )
+        answer = self._clarify_callback(
+            question,
+            ["Approve once", "Approve for session", "Deny"],
+        )
+        normalized = str(answer or "").strip().lower()
+        if normalized in {"approve once", "approve for session"}:
+            return normalized
+        return "deny"
 
     def _sudo_password_callback(self) -> str:
         """

@@ -1944,6 +1944,9 @@ DEFAULT_CONFIG = {
     "security": {
         "allow_private_urls": False,  # Allow requests to private/internal IPs (for OpenWrt, proxies, VPNs)
         "redact_secrets": True,
+        # full: current behavior; minimal: keep raw tool outputs local and
+        # require approval before a saved output can be read back into context.
+        "llm_exposure": "full",
         "tirith_enabled": True,
         "tirith_path": "tirith",
         "tirith_timeout": 5,
