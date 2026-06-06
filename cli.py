@@ -8650,6 +8650,13 @@ class HermesCLI:
             self._handle_tools_command(cmd_original)
         elif canonical == "toolsets":
             self.show_toolsets()
+        elif canonical == "pc-tool-config":
+            from hermes_cli.tool_config import handle_tool_config_text
+
+            parts = cmd_original.split(None, 1)
+            raw_args = parts[1] if len(parts) > 1 else ""
+            output = handle_tool_config_text(raw_args)
+            self._console_print(_rich_text_from_ansi(output))
         elif canonical == "config":
             self.show_config()
         elif canonical == "redraw":

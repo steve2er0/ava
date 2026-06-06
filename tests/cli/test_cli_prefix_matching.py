@@ -92,6 +92,18 @@ class TestSlashCommandPrefixMatching:
             cli_obj.process_command("/help")
         mock_help.assert_called_once()
 
+    def test_pc_tool_config_exact_command_dispatches(self):
+        """/pc-tool-config must execute from the CLI dispatcher, not autocomplete only."""
+        cli_obj = _make_cli()
+        with patch("cli._cprint") as mock_cprint:
+            result = cli_obj.process_command("/pc-tool-config list")
+
+        assert result is True
+        printed = " ".join(str(call) for call in cli_obj.console.print.call_args_list)
+        assert "Enterprise tool configuration" in printed
+        unknown = " ".join(str(call) for call in mock_cprint.call_args_list)
+        assert "Unknown command" not in unknown
+
     def test_skill_command_prefix_matches(self):
         """A prefix that uniquely matches a skill command should dispatch it."""
         cli_obj = _make_cli()
