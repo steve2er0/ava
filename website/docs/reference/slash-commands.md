@@ -77,6 +77,7 @@ Type `/` in the CLI to open the autocomplete menu. Built-in commands are case-in
 | `/yolo` | Toggle YOLO mode — skip all dangerous command approval prompts. |
 | `/footer [on\|off\|status]` | Toggle the gateway runtime-metadata footer on final replies (shows model, tool counts, timing). |
 | `/busy [queue\|steer\|interrupt\|status]` | CLI-only: control what pressing Enter does while Hermes is working — queue the new message, steer mid-turn, or interrupt immediately. |
+| `/llm-exposure [full\|minimal\|status]` (alias: `/llm_exposure`) | CLI-only: control raw tool-output exposure to the active LLM. `minimal` keeps raw tool results local and sends protected-output metadata instead. |
 | `/indicator [kaomoji\|emoji\|unicode\|ascii]` | CLI-only: pick the TUI busy-indicator style. |
 
 ### Tools & Skills
@@ -235,7 +236,7 @@ The messaging gateway supports the following built-in commands inside Telegram, 
 
 ## Notes
 
-- `/skin`, `/snapshot`, `/gquota`, `/reload`, `/tools`, `/toolsets`, `/browser`, `/config`, `/cron`, `/skills`, `/platforms`, `/paste`, `/image`, `/statusbar`, `/plugins`, `/busy`, `/indicator`, `/redraw`, `/clear`, `/history`, `/save`, `/copy`, `/handoff`, and `/quit` are **CLI-only** commands.
+- `/skin`, `/snapshot`, `/gquota`, `/reload`, `/tools`, `/toolsets`, `/browser`, `/config`, `/cron`, `/skills`, `/platforms`, `/paste`, `/image`, `/statusbar`, `/plugins`, `/busy`, `/llm-exposure`, `/indicator`, `/redraw`, `/clear`, `/history`, `/save`, `/copy`, `/handoff`, and `/quit` are **CLI-only** commands.
 - `/verbose` is **CLI-only by default**, but can be enabled for messaging platforms by setting `display.tool_progress_command: true` in `config.yaml`. When enabled, it cycles the `display.tool_progress` mode and saves to config.
 - `/sethome`, `/update`, `/restart`, `/approve`, `/deny`, `/topic`, and `/commands` are **messaging-only** commands.
 - `/status`, `/background`, `/queue`, `/steer`, `/voice`, `/reload-mcp`, `/reload-skills`, `/rollback`, `/debug`, `/fast`, `/footer`, `/curator`, `/kanban`, `/sessions`, and `/yolo` work in **both** the CLI and the messaging gateway.

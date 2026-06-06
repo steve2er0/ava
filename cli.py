@@ -9004,6 +9004,8 @@ class HermesCLI:
             self._handle_voice_command(cmd_original)
         elif canonical == "busy":
             self._handle_busy_command(cmd_original)
+        elif canonical == "llm-exposure":
+            self._handle_llm_exposure_command(cmd_original)
         else:
             # Check for user-defined quick commands (bypass agent loop, no LLM call)
             base_cmd = cmd_lower.split()[0]
@@ -10161,6 +10163,47 @@ class HermesCLI:
             _cprint(f"  {_DIM}{behavior}{_RST}")
         else:
             _cprint(f"  {_ACCENT}✓ Busy input mode set to '{arg}' (session only){_RST}")
+
+    def _handle_llm_exposure_command(self, cmd: str):
+        """Handle /llm-exposure — control raw tool-output exposure to the LLM."""
+        from agent.llm_exposure import (
+            LLM_EXPOSURE_FULL,
+            LLM_EXPOSURE_MINIMAL,
+            normalize_llm_exposure,
+        )
+
+        parts = cmd.strip().split(maxsplit=1)
+        current = normalize_llm_exposure(getattr(self, "llm_exposure", LLM_EXPOSURE_FULL))
+        if len(parts) < 2 or parts[1].strip().lower() == "status":
+            _cprint(f"  {_ACCENT}LLM exposure: {current}{_RST}")
+            if current == LLM_EXPOSURE_MINIMAL:
+                detail = "raw tool results are kept local; the model sees protected-output metadata"
+            else:
+                detail = "raw tool results are sent to the active model normally"
+            _cprint(f"  {_DIM}{detail}{_RST}")
+            _cprint(f"  {_DIM}Usage: /llm-exposure [full|minimal|status]{_RST}")
+            return
+
+        arg = parts[1].strip().lower()
+        if arg not in {LLM_EXPOSURE_FULL, LLM_EXPOSURE_MINIMAL}:
+            _cprint(f"  {_DIM}(._.) Unknown argument: {arg}{_RST}")
+            _cprint(f"  {_DIM}Usage: /llm-exposure [full|minimal|status]{_RST}")
+            return
+
+        self.llm_exposure = arg
+        agent = getattr(self, "agent", None)
+        if agent is not None:
+            agent.llm_exposure = arg
+
+        if save_config_value("security.llm_exposure", arg):
+            _cprint(f"  {_ACCENT}✓ LLM exposure set to '{arg}' (saved to config){_RST}")
+        else:
+            _cprint(f"  {_ACCENT}✓ LLM exposure set to '{arg}' (session only){_RST}")
+
+        if arg == LLM_EXPOSURE_MINIMAL:
+            _cprint(f"  {_DIM}Raw tool results will stay local unless you approve a protected-output read.{_RST}")
+        else:
+            _cprint(f"  {_DIM}Tool results will be sent to the active model normally.{_RST}")
 
     def _handle_fast_command(self, cmd: str):
         """Handle /fast — toggle fast mode (OpenAI Priority Processing / Anthropic Fast Mode)."""

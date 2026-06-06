@@ -159,6 +159,10 @@ COMMAND_REGISTRY: list[CommandDef] = [
     CommandDef("busy", "Control what Enter does while Hermes is working", "Configuration",
                cli_only=True, args_hint="[queue|steer|interrupt|status]",
                subcommands=("queue", "steer", "interrupt", "status")),
+    CommandDef("llm-exposure", "Control how much raw tool output is exposed to the LLM",
+               "Configuration", cli_only=True, aliases=("llm_exposure",),
+               args_hint="[full|minimal|status]",
+               subcommands=("full", "minimal", "status")),
 
     # Tools & Skills
     CommandDef("tools", "Manage tools: /tools [list|disable|enable] [name...]", "Tools & Skills",
