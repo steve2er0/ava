@@ -16,7 +16,8 @@ Update logic:
         update from bundled if bundled changed. New origin hash recorded.
       * If user copy differs from origin hash: user customized it → SKIP.
   - DELETED by user (in manifest, absent from user dir): respected, not re-added.
-  - REMOVED from bundled (in manifest, gone from repo): cleaned from manifest.
+  - REMOVED from bundled (in manifest, gone from repo): unmodified local copies
+    are removed and the manifest entry is cleaned; modified copies are kept.
 
 The manifest lives at ~/.hermes/skills/.bundled_manifest.
 """
@@ -187,6 +188,26 @@ def _discover_bundled_skills(bundled_dir: Path) -> List[Tuple[str, Path]]:
         skill_dir = skill_md.parent
         skill_name = _read_skill_name(skill_md, skill_dir.name)
         skills.append((skill_name, skill_dir))
+
+    return skills
+
+
+def _discover_local_skill_dirs_by_name() -> Dict[str, List[Path]]:
+    """Find active local skill directories keyed by frontmatter skill name."""
+    skills: Dict[str, List[Path]] = {}
+    if not SKILLS_DIR.exists():
+        return skills
+
+    for skill_md in SKILLS_DIR.rglob("SKILL.md"):
+        if is_excluded_skill_path(skill_md):
+            continue
+        skill_dir = skill_md.parent
+        try:
+            skill_dir.relative_to(SKILLS_DIR)
+        except ValueError:
+            continue
+        skill_name = _read_skill_name(skill_md, skill_dir.name)
+        skills.setdefault(skill_name, []).append(skill_dir)
 
     return skills
 
@@ -470,7 +491,8 @@ def sync_skills(quiet: bool = False) -> dict:
         return {
             "copied": [], "updated": [], "skipped": 0,
             "user_modified": [], "cleaned": [], "total_bundled": 0,
-            "optional_provenance_backfilled": [], "skipped_opt_out": True,
+            "removed_stale": [], "optional_provenance_backfilled": [],
+            "skipped_opt_out": True,
         }
 
     bundled_dir = _get_bundled_dir()
@@ -478,7 +500,7 @@ def sync_skills(quiet: bool = False) -> dict:
         return {
             "copied": [], "updated": [], "skipped": 0,
             "user_modified": [], "cleaned": [], "suppressed": [], "total_bundled": 0,
-            "optional_provenance_backfilled": [],
+            "removed_stale": [], "optional_provenance_backfilled": [],
         }
 
     SKILLS_DIR.mkdir(parents=True, exist_ok=True)
@@ -596,9 +618,33 @@ def sync_skills(quiet: bool = False) -> dict:
             # ── In manifest but not on disk — user deleted it ──
             skipped += 1
 
-    # Clean stale manifest entries (skills removed from bundled dir)
-    cleaned = sorted(set(manifest.keys()) - bundled_names)
-    for name in cleaned:
+    # Clean stale manifest entries for skills removed from bundled source.
+    # If the old local copy is still byte-identical to the tracked origin, it
+    # is a stale bundled residue and can be removed. Modified copies are kept
+    # and become unmanaged local skills.
+    cleaned: List[str] = []
+    removed_stale: List[str] = []
+    local_by_name = _discover_local_skill_dirs_by_name()
+    for name in sorted(set(manifest.keys()) - bundled_names):
+        origin_hash = manifest.get(name, "")
+        delete_failed = False
+        if origin_hash:
+            for dest in local_by_name.get(name, []):
+                if not dest.exists() or _dir_hash(dest) != origin_hash:
+                    continue
+                try:
+                    _rmtree_writable(dest)
+                except (OSError, IOError) as e:
+                    delete_failed = True
+                    if not quiet:
+                        print(f"  ! Failed to remove stale bundled skill {name}: {e}")
+                    continue
+                removed_stale.append(name)
+                if not quiet:
+                    print(f"  - {name} (removed stale bundled copy)")
+        if delete_failed:
+            continue
+        cleaned.append(name)
         del manifest[name]
 
     # Also copy DESCRIPTION.md files for categories (if not already present)
@@ -621,6 +667,7 @@ def sync_skills(quiet: bool = False) -> dict:
         "skipped": skipped,
         "user_modified": user_modified,
         "cleaned": cleaned,
+        "removed_stale": sorted(set(removed_stale)),
         "suppressed": suppressed_skipped,
         "total_bundled": len(bundled_skills),
         "optional_provenance_backfilled": optional_provenance_backfilled,

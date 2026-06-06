@@ -11406,7 +11406,7 @@ _BUILTIN_SUBCOMMANDS = frozenset(
         "model", "pairing", "plugins", "portal", "postinstall", "profile", "proxy",
         "prompt-size",
         "send", "sessions", "setup",
-        "skills", "slack", "status", "tool-config", "tools", "uninstall", "update",
+        "skills", "slack", "status", "pc-tool-config", "tool-config", "tool_config", "tools", "uninstall", "update",
         "version", "webhook", "whatsapp", "chat", "secrets", "security",
         # Help-ish invocations — plugin commands not being listed in
         # top-level --help is an acceptable trade-off for skipping an
@@ -13629,10 +13629,11 @@ Examples:
     memory_parser.set_defaults(func=cmd_memory)
 
     # =========================================================================
-    # tool-config command
+    # pc-tool-config command
     # =========================================================================
     tool_config_parser = subparsers.add_parser(
-        "tool-config",
+        "pc-tool-config",
+        aliases=["tool-config", "tool_config"],
         help="Configure enterprise application executable paths",
         description=(
             "Configure exact executable paths for enterprise tools such as "

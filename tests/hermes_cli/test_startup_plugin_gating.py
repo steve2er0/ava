@@ -60,7 +60,7 @@ def _live_subcommand_names() -> set[str]:
 
     text = buf.getvalue()
     # argparse prints "{chat,model,...}" somewhere in the help output
-    m = re.search(r"\{([a-zA-Z0-9_,\-]+)\}", text)
+    m = re.search(r"\{([a-zA-Z0-9,_-]+)\}", text)
     assert m, f"Could not find subcommand group in --help output:\n{text[:500]}"
     return set(m.group(1).split(","))
 

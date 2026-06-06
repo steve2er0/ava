@@ -90,7 +90,7 @@ def _make_runner(platform_extra: dict | None = None):
 async def test_tool_config_dispatch_lists_tools(tmp_path):
     runner = _make_runner()
     with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
-        result = await runner._handle_message(_make_event("/tool_config list", _make_source()))
+        result = await runner._handle_message(_make_event("/pc-tool-config list", _make_source()))
 
     assert "Enterprise tool configuration" in result
     assert "will not search the PC" in result
@@ -101,11 +101,19 @@ async def test_tool_config_admin_only_when_slash_policy_enabled(tmp_path):
     runner = _make_runner(
         {
             "allow_admin_from": ["admin"],
-            "user_allowed_commands": ["tool_config"],
+            "user_allowed_commands": ["pc-tool-config"],
         }
     )
     with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
-        result = await runner._handle_message(_make_event("/tool_config list", _make_source("user")))
+        result = await runner._handle_message(_make_event("/pc-tool-config list", _make_source("user")))
 
     assert "admin-only" in result
 
+
+@pytest.mark.asyncio
+async def test_tool_config_legacy_slash_alias_still_dispatches(tmp_path):
+    runner = _make_runner()
+    with patch.dict(os.environ, {"HERMES_HOME": str(tmp_path)}):
+        result = await runner._handle_message(_make_event("/tool_config list", _make_source()))
+
+    assert "Enterprise tool configuration" in result

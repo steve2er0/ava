@@ -992,7 +992,7 @@ DEFAULT_CONFIG = {
 
     # Enterprise/local application executable paths. These are explicit
     # allowlist entries: Ava never scans the PC or mutates PATH to find them.
-    # Configure with `hermes tool-config` locally or `/tool_config` in gateway.
+    # Configure with `hermes pc-tool-config` locally or `/pc-tool-config` in gateway.
     "external_tools": {
         "nastran": {
             "enabled": False,

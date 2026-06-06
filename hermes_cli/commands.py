@@ -163,10 +163,10 @@ COMMAND_REGISTRY: list[CommandDef] = [
     # Tools & Skills
     CommandDef("tools", "Manage tools: /tools [list|disable|enable] [name...]", "Tools & Skills",
                args_hint="[list|disable|enable] [name...]", cli_only=True),
-    CommandDef("tool_config", "Configure enterprise executable paths", "Tools & Skills",
-               aliases=("tool-config",),
+    CommandDef("pc-tool-config", "Configure enterprise executable paths", "Tools & Skills",
                args_hint="[list|set|remove|validate] [tool] [path]",
-               subcommands=("list", "set", "remove", "validate")),
+               subcommands=("list", "set", "remove", "validate"),
+               cli_only=True),
     CommandDef("toolsets", "List available toolsets", "Tools & Skills",
                cli_only=True),
     CommandDef("skills", "Search, install, inspect, or manage skills",

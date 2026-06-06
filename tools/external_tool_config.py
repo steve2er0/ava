@@ -294,7 +294,7 @@ def validate_tool_entry(
         errors = [
             (
                 f"{definition.display_name} is not configured. Provide an exact path, "
-                f"for example: /tool_config set {key} {definition.example_windows_path}"
+                f"for example: /pc-tool-config set {key} {definition.example_windows_path}"
             )
         ]
 
@@ -318,7 +318,7 @@ def missing_tool_message(tool_name: str) -> str:
     definition = ENTERPRISE_TOOL_DEFINITIONS[key]
     return (
         f"{definition.display_name} is not configured. Ava will not search the PC "
-        f"for executables. Provide the exact path with: /tool_config set {key} "
+        f"for executables. Provide the exact path with: /pc-tool-config set {key} "
         f"{definition.example_windows_path}"
     )
 
@@ -397,4 +397,3 @@ def run_external_tool(
         background=background,
         workdir=workdir or resolved.working_dir or None,
     )
-

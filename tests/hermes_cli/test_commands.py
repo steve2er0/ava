@@ -108,6 +108,7 @@ class TestResolveCommand:
         assert resolve_command("set-home").name == "sethome"
         assert resolve_command("reload_mcp").name == "reload-mcp"
         assert resolve_command("codex_runtime").name == "codex-runtime"
+        assert resolve_command("pc-tool-config").name == "pc-tool-config"
         assert resolve_command("tasks").name == "agents"
 
     def test_topic_is_gateway_command(self):
@@ -149,6 +150,9 @@ class TestDerivedDicts:
         assert "/q" in COMMANDS
         assert "/exit" in COMMANDS
         assert "/reload_mcp" in COMMANDS
+        assert "/pc-tool-config" in COMMANDS
+        assert "/tool_config" not in COMMANDS
+        assert "/tool-config" not in COMMANDS
         assert "/gateway" in COMMANDS
 
     def test_commands_by_category_covers_all_categories(self):
@@ -509,6 +513,19 @@ class TestSlashCommandCompleter:
         completions = _completions(SlashCommandCompleter(), "/help")
         assert len(completions) == 1
         assert completions[0].display_meta_text == "Show available commands"
+
+    def test_pc_tool_config_completion_is_visible(self):
+        completions = _completions(SlashCommandCompleter(), "/pc-")
+        texts = {item.text for item in completions}
+
+        assert "pc-tool-config" in texts
+
+    def test_legacy_tool_config_completion_is_hidden(self):
+        completions = _completions(SlashCommandCompleter(), "/tool")
+        texts = {item.text for item in completions}
+
+        assert "tool_config" not in texts
+        assert "tool-config" not in texts
 
     # -- exact-match trailing space --------------------------------------
 

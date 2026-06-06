@@ -26,10 +26,10 @@ from tools.external_tool_config import (
 
 USAGE = (
     "Usage:\n"
-    "  /tool_config list\n"
-    "  /tool_config set <tool> <absolute executable path>\n"
-    "  /tool_config remove <tool>\n"
-    "  /tool_config validate [tool]\n\n"
+    "  /pc-tool-config list\n"
+    "  /pc-tool-config set <tool> <absolute executable path>\n"
+    "  /pc-tool-config remove <tool>\n"
+    "  /pc-tool-config validate [tool]\n\n"
     "Tools: "
     + ", ".join(supported_tool_keys())
 )
@@ -126,7 +126,7 @@ def handle_tool_config_text(raw_args: str) -> str:
         if action == "validate":
             return format_tool_validation(config, tool)
 
-        return f"Unknown tool_config action: {action}\n\n{USAGE}"
+        return f"Unknown pc-tool-config action: {action}\n\n{USAGE}"
     except ExternalToolConfigError as exc:
         return f"Tool configuration error: {exc}"
 
@@ -220,4 +220,3 @@ def colored_tool_config_summary(config: dict[str, Any]) -> str:
         color(f"{len(configured)} configured", Colors.GREEN)
         + color(f", {len(missing)} missing", Colors.DIM)
     )
-

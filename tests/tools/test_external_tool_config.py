@@ -71,7 +71,7 @@ def test_missing_tool_message_tells_user_to_configure_path():
     message = missing_tool_message("chrome")
 
     assert "will not search the PC" in message
-    assert "/tool_config set chrome" in message
+    assert "/pc-tool-config set chrome" in message
 
 
 def test_remove_resets_tool_entry(tmp_path):

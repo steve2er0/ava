@@ -408,6 +408,58 @@ class TestSyncSkills:
             manifest = _read_manifest()
         assert "removed-skill" not in manifest
 
+    def test_stale_unmodified_bundled_copy_removed(self, tmp_path):
+        """Removed upstream bundled skills should disappear from the active profile."""
+        bundled = self._setup_bundled(tmp_path)
+        skills_dir = tmp_path / "user_skills"
+        manifest_file = skills_dir / ".bundled_manifest"
+
+        removed = skills_dir / "removed-skill"
+        removed.mkdir(parents=True)
+        (removed / "SKILL.md").write_text(
+            "---\nname: removed-skill\n---\n# Removed\n"
+        )
+        origin_hash = _dir_hash(removed)
+        manifest_file.write_text(f"removed-skill:{origin_hash}\n")
+
+        with self._patches(bundled, skills_dir, manifest_file):
+            result = sync_skills(quiet=True)
+
+        assert "removed-skill" in result["cleaned"]
+        assert "removed-skill" in result["removed_stale"]
+        assert not removed.exists()
+        with patch("tools.skills_sync.MANIFEST_FILE", manifest_file):
+            manifest = _read_manifest()
+        assert "removed-skill" not in manifest
+
+    def test_stale_modified_bundled_copy_is_kept(self, tmp_path):
+        """Edited copies of removed bundled skills should not be deleted."""
+        bundled = self._setup_bundled(tmp_path)
+        skills_dir = tmp_path / "user_skills"
+        manifest_file = skills_dir / ".bundled_manifest"
+
+        removed = skills_dir / "removed-skill"
+        removed.mkdir(parents=True)
+        (removed / "SKILL.md").write_text(
+            "---\nname: removed-skill\n---\n# Removed\n"
+        )
+        origin_hash = _dir_hash(removed)
+        (removed / "SKILL.md").write_text(
+            "---\nname: removed-skill\n---\n# User edit\n"
+        )
+        manifest_file.write_text(f"removed-skill:{origin_hash}\n")
+
+        with self._patches(bundled, skills_dir, manifest_file):
+            result = sync_skills(quiet=True)
+
+        assert "removed-skill" in result["cleaned"]
+        assert "removed-skill" not in result["removed_stale"]
+        assert removed.exists()
+        assert "User edit" in (removed / "SKILL.md").read_text()
+        with patch("tools.skills_sync.MANIFEST_FILE", manifest_file):
+            manifest = _read_manifest()
+        assert "removed-skill" not in manifest
+
     def test_does_not_overwrite_existing_unmanifested_skill(self, tmp_path):
         """New skill whose name collides with user-created skill = skipped."""
         bundled = self._setup_bundled(tmp_path)
@@ -619,7 +671,7 @@ class TestSyncSkills:
         assert result == {
             "copied": [], "updated": [], "skipped": 0,
             "user_modified": [], "cleaned": [], "suppressed": [], "total_bundled": 0,
-            "optional_provenance_backfilled": [],
+            "removed_stale": [], "optional_provenance_backfilled": [],
         }
 
     def test_failed_copy_does_not_poison_manifest(self, tmp_path):

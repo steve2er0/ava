@@ -40,7 +40,7 @@ def test_handle_tool_config_list_mentions_no_search_policy(tmp_path):
 
     assert "will not search the PC" in response
     assert "matlab" in response
-    assert "/tool_config set" in response
+    assert "/pc-tool-config set" in response
 
 
 def test_handle_tool_config_remove_resets_path(tmp_path):
@@ -60,4 +60,3 @@ def test_format_tool_config_list_shows_examples_for_missing_tools():
 
     assert "nastran" in response
     assert "example:" in response
-

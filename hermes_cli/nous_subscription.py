@@ -1035,7 +1035,7 @@ def _run_nous_portal_login_only(*, capability: str) -> bool:
         return False
 
     try:
-        # Snapshot the active_provider so a tool-config login never silently
+        # Snapshot the active_provider so a pc-tool-config login never silently
         # switches the user's inference provider to Nous.
         with _auth_store_lock():
             prior_active_provider = _load_auth_store().get("active_provider")

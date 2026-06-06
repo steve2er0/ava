@@ -7533,6 +7533,8 @@ class GatewayRunner:
             )
             _evt_cmd = event.get_command()
             _cmd_def_inner = _resolve_cmd_inner(_evt_cmd) if _evt_cmd else None
+            if _evt_cmd in {"tool_config", "tool-config"} and _cmd_def_inner is None:
+                _cmd_def_inner = _resolve_cmd_inner("pc-tool-config")
 
             # Slash command access control on the running-agent fast-path.
             # Mirrors the cold-path gate further below so non-admin users
@@ -7696,10 +7698,10 @@ class GatewayRunner:
             if _cmd_def_inner and _cmd_def_inner.name == "kanban":
                 return await self._handle_kanban_command(event)
 
-            # /tool_config is control-plane config, not an agent turn. Allow it
+            # /pc-tool-config is control-plane config, not an agent turn. Allow it
             # while a run is active so admins can fix missing executable paths
             # without interrupting long analyses.
-            if _cmd_def_inner and _cmd_def_inner.name == "tool_config":
+            if _cmd_def_inner and _cmd_def_inner.name == "pc-tool-config":
                 return await self._handle_tool_config_command(event)
 
             # /goal is safe mid-run for status/pause/clear (inspection and
@@ -7879,6 +7881,8 @@ class GatewayRunner:
         # Resolve aliases to canonical name so dispatch and hook names
         # don't depend on the exact alias the user typed.
         _cmd_def = _resolve_cmd(command) if command else None
+        if command in {"tool_config", "tool-config"} and _cmd_def is None:
+            _cmd_def = _resolve_cmd("pc-tool-config")
         canonical = _cmd_def.name if _cmd_def else command
 
         # Expand alias quick commands before built-in dispatch so targets like
@@ -8046,7 +8050,7 @@ class GatewayRunner:
         if canonical == "kanban":
             return await self._handle_kanban_command(event)
 
-        if canonical == "tool_config":
+        if canonical == "pc-tool-config":
             return await self._handle_tool_config_command(event)
 
         if canonical == "retry":
@@ -10224,15 +10228,15 @@ class GatewayRunner:
         return output or t("gateway.kanban.no_output")
 
     async def _handle_tool_config_command(self, event: MessageEvent) -> str:
-        """Handle /tool_config for enterprise executable path configuration."""
+        """Handle /pc-tool-config for enterprise executable path configuration."""
         try:
             from gateway.slash_access import policy_for_source
 
             policy = policy_for_source(self.config, event.source)
             if policy.enabled and not policy.is_admin(event.source.user_id):
-                return "Command `/tool_config` is admin-only here."
+                return "Command `/pc-tool-config` is admin-only here."
         except Exception:
-            logger.debug("Could not resolve slash policy for /tool_config", exc_info=True)
+            logger.debug("Could not resolve slash policy for /pc-tool-config", exc_info=True)
 
         raw_args = event.get_command_args().strip()
         try:
@@ -10240,7 +10244,7 @@ class GatewayRunner:
 
             return await asyncio.to_thread(handle_tool_config_text, raw_args)
         except Exception as exc:
-            logger.exception("/tool_config failed")
+            logger.exception("/pc-tool-config failed")
             return f"Tool configuration error: {exc}"
 
     async def _handle_status_command(self, event: MessageEvent) -> str:
