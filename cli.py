@@ -644,6 +644,12 @@ def load_cli_config() -> Dict[str, Any]:
             "base_url": "AUXILIARY_WEB_EXTRACT_BASE_URL",
             "api_key": "AUXILIARY_WEB_EXTRACT_API_KEY",
         },
+        "sensitive_data": {
+            "provider": "AUXILIARY_SENSITIVE_DATA_PROVIDER",
+            "model": "AUXILIARY_SENSITIVE_DATA_MODEL",
+            "base_url": "AUXILIARY_SENSITIVE_DATA_BASE_URL",
+            "api_key": "AUXILIARY_SENSITIVE_DATA_API_KEY",
+        },
         "approval": {
             "provider": "AUXILIARY_APPROVAL_PROVIDER",
             "model": "AUXILIARY_APPROVAL_MODEL",

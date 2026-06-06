@@ -155,6 +155,37 @@ class TestNormalizeAuxProvider:
         assert _normalize_aux_provider("copilot-acp-agent") == "copilot-acp"
 
 
+class TestSensitiveDataAuxiliaryRouting:
+    def test_sensitive_data_rejects_auto_provider(self):
+        with patch(
+            "agent.auxiliary_client._resolve_task_provider_model",
+            return_value=("auto", "", None, None, None),
+        ):
+            with pytest.raises(RuntimeError, match="cannot use auto or main"):
+                call_llm(task="sensitive_data", messages=[{"role": "user", "content": "x"}])
+
+    def test_sensitive_data_does_not_fallback_to_main_model(self):
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.side_effect = Exception("402 Payment Required")
+
+        with patch(
+            "agent.auxiliary_client._resolve_task_provider_model",
+            return_value=("openai-api", "approved-sensitive", None, "key", None),
+        ), patch(
+            "agent.auxiliary_client._get_cached_client",
+            return_value=(fake_client, "approved-sensitive"),
+        ), patch(
+            "agent.auxiliary_client._try_configured_fallback_chain",
+            return_value=(None, None, ""),
+        ), patch(
+            "agent.auxiliary_client._try_main_agent_model_fallback",
+        ) as main_fallback:
+            with pytest.raises(Exception, match="402 Payment Required"):
+                call_llm(task="sensitive_data", messages=[{"role": "user", "content": "x"}])
+
+        main_fallback.assert_not_called()
+
+
 class TestReadCodexAccessToken:
     def test_valid_auth_store(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / "hermes"

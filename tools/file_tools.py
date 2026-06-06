@@ -237,6 +237,15 @@ _SENSITIVE_PATH_PREFIXES = (
     "/private/etc/", "/private/var/",
 )
 _SENSITIVE_EXACT_PATHS = {"/var/run/docker.sock", "/run/docker.sock"}
+_SENSITIVE_DATA_EXTENSIONS = frozenset({
+    ".xlsx",
+    ".xls",
+    ".docx",
+    ".doc",
+    ".db",
+    ".sqlite",
+    ".sqlite3",
+})
 
 _hermes_config_resolved: str | None = None
 _hermes_config_resolved_loaded = False
@@ -711,6 +720,19 @@ def read_file_tool(path: str, offset: int = 1, limit: int = 500, task_id: str = 
         # Block binary files by extension (no I/O).
         if has_binary_extension(str(_resolved)):
             _ext = _resolved.suffix.lower()
+            if _ext in _SENSITIVE_DATA_EXTENSIONS:
+                return json.dumps({
+                    "error": (
+                        f"Cannot read data/document file '{path}' ({_ext}) with read_file. "
+                        "This file type is marked or assumed Sensitive when an LLM would "
+                        "ingest its contents. Use sensitive_data_read to inspect it through "
+                        "the configured auxiliary.sensitive_data model. Normal code/script "
+                        "development around data-processing workflows can continue with "
+                        "ordinary file tools."
+                    ),
+                    "suggested_tool": "sensitive_data_read",
+                    "sensitivity": "marked or assumed Sensitive",
+                }, ensure_ascii=False)
             return json.dumps({
                 "error": (
                     f"Cannot read binary file '{path}' ({_ext}). "
@@ -1296,6 +1318,24 @@ def search_tool(pattern: str, target: str = "content", path: str = ".",
     """Search for content or files."""
     try:
         offset, limit = normalize_search_pagination(offset, limit)
+        if target in {"content", "grep"}:
+            try:
+                _resolved_search_path = _resolve_path_for_task(path, task_id)
+                _ext = _resolved_search_path.suffix.lower()
+            except Exception:
+                _ext = Path(str(path or "")).suffix.lower()
+            _glob_ext = Path(str(file_glob or "")).suffix.lower()
+            if _ext in _SENSITIVE_DATA_EXTENSIONS or _glob_ext in _SENSITIVE_DATA_EXTENSIONS:
+                blocked_ext = _ext or _glob_ext
+                return json.dumps({
+                    "error": (
+                        f"Cannot content-search data/document file '{path}' ({blocked_ext}) with "
+                        "search_files because that would ingest Sensitive data into the "
+                        "primary model. Use sensitive_data_read instead."
+                    ),
+                    "suggested_tool": "sensitive_data_read",
+                    "sensitivity": "marked or assumed Sensitive",
+                }, ensure_ascii=False)
 
         # Track searches to detect *consecutive* repeated search loops.
         # Include pagination args so users can page through truncated
@@ -1374,7 +1414,7 @@ def _check_file_reqs():
 
 READ_FILE_SCHEMA = {
     "name": "read_file",
-    "description": "Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Use offset and limit for large files. Reads exceeding ~100K characters are rejected; use offset and limit to read specific sections of large files. NOTE: Cannot read images or binary files — use vision_analyze for images.",
+    "description": "Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Use offset and limit for large files. Reads exceeding ~100K characters are rejected; use offset and limit to read specific sections of large files. NOTE: Cannot read images or binary files. Use vision_analyze for images. Use sensitive_data_read, not read_file, when an LLM needs to inspect Excel/Word/SQLite/database contents marked or assumed Sensitive.",
     "parameters": {
         "type": "object",
         "properties": {

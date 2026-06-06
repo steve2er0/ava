@@ -43,6 +43,19 @@ from agent.prompt_builder import (
 from agent.runtime_cwd import resolve_context_cwd
 
 
+SENSITIVE_DATA_GUIDANCE = (
+    "Sensitive data routing: if the user marks data as Sensitive, or if an "
+    "LLM would inspect contents of Excel, Word, SQLite, or database files, do "
+    "not dump those raw contents through read_file, terminal, or execute_code "
+    "into the primary model. Use sensitive_data_read so the configured "
+    "auxiliary.sensitive_data model handles the raw data and reports back a "
+    "sanitized handoff. Normal code development remains primary-model work: "
+    "writing Python scripts for PSD/time-history calculations, editing bulk "
+    "processing programs, and using sample data do not need the sensitive "
+    "model unless real data contents are being ingested by an LLM."
+)
+
+
 def _ra():
     """Lazy reference to the ``run_agent`` module.
 
@@ -116,6 +129,8 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
         tool_guidance.append(MEMORY_GUIDANCE)
     if "session_search" in agent.valid_tool_names:
         tool_guidance.append(SESSION_SEARCH_GUIDANCE)
+    if "sensitive_data_read" in agent.valid_tool_names:
+        tool_guidance.append(SENSITIVE_DATA_GUIDANCE)
     if "skill_manage" in agent.valid_tool_names:
         tool_guidance.append(SKILLS_GUIDANCE)
     # Kanban worker/orchestrator lifecycle — only present when the

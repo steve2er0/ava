@@ -25,6 +25,8 @@ def _run_auxiliary_bridge(config_dict, monkeypatch):
         "AUXILIARY_VISION_BASE_URL", "AUXILIARY_VISION_API_KEY",
         "AUXILIARY_WEB_EXTRACT_PROVIDER", "AUXILIARY_WEB_EXTRACT_MODEL",
         "AUXILIARY_WEB_EXTRACT_BASE_URL", "AUXILIARY_WEB_EXTRACT_API_KEY",
+        "AUXILIARY_SENSITIVE_DATA_PROVIDER", "AUXILIARY_SENSITIVE_DATA_MODEL",
+        "AUXILIARY_SENSITIVE_DATA_BASE_URL", "AUXILIARY_SENSITIVE_DATA_API_KEY",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -45,6 +47,12 @@ def _run_auxiliary_bridge(config_dict, monkeypatch):
                 "model": "AUXILIARY_WEB_EXTRACT_MODEL",
                 "base_url": "AUXILIARY_WEB_EXTRACT_BASE_URL",
                 "api_key": "AUXILIARY_WEB_EXTRACT_API_KEY",
+            },
+            "sensitive_data": {
+                "provider": "AUXILIARY_SENSITIVE_DATA_PROVIDER",
+                "model": "AUXILIARY_SENSITIVE_DATA_MODEL",
+                "base_url": "AUXILIARY_SENSITIVE_DATA_BASE_URL",
+                "api_key": "AUXILIARY_SENSITIVE_DATA_API_KEY",
             },
         }
         for task_key, env_map in aux_task_env.items():
@@ -103,6 +111,23 @@ class TestAuxiliaryConfigBridge:
         _run_auxiliary_bridge(config, monkeypatch)
         assert os.environ.get("AUXILIARY_WEB_EXTRACT_PROVIDER") == "nous"
         assert os.environ.get("AUXILIARY_WEB_EXTRACT_MODEL") == "gemini-2.5-flash"
+
+    def test_sensitive_data_bridged(self, monkeypatch):
+        config = {
+            "auxiliary": {
+                "sensitive_data": {
+                    "provider": "local",
+                    "model": "approved-sensitive",
+                    "base_url": "http://localhost:1234/v1",
+                    "api_key": "local-key",
+                },
+            }
+        }
+        _run_auxiliary_bridge(config, monkeypatch)
+        assert os.environ.get("AUXILIARY_SENSITIVE_DATA_PROVIDER") == "local"
+        assert os.environ.get("AUXILIARY_SENSITIVE_DATA_MODEL") == "approved-sensitive"
+        assert os.environ.get("AUXILIARY_SENSITIVE_DATA_BASE_URL") == "http://localhost:1234/v1"
+        assert os.environ.get("AUXILIARY_SENSITIVE_DATA_API_KEY") == "local-key"
 
     def test_direct_endpoint_bridged(self, monkeypatch):
         config = {
@@ -218,6 +243,7 @@ class TestGatewayBridgeCodeParity:
         assert "_aux_bridged_keys" in content
         assert '"vision"' in content
         assert '"web_extract"' in content
+        assert '"sensitive_data"' in content
         assert '"approval"' in content
         # Plugin-aux-task discovery hooked into bridging
         assert "get_plugin_auxiliary_tasks" in content

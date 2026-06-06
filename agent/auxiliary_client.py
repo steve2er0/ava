@@ -158,6 +158,7 @@ _PROVIDER_ALIASES = {
 }
 
 _OPENAI_ONLY_AUX_PROVIDERS = frozenset({"auto", "openai-codex", "openai-api"})
+_SENSITIVE_DATA_TASK = "sensitive_data"
 
 
 def _normalize_aux_provider(provider: Optional[str]) -> str:
@@ -4875,6 +4876,12 @@ def call_llm(
     """
     resolved_provider, resolved_model, resolved_base_url, resolved_api_key, resolved_api_mode = _resolve_task_provider_model(
         task, provider, model, base_url, api_key)
+    if task == _SENSITIVE_DATA_TASK and (resolved_provider or "").strip().lower() in {"", "auto", "main"}:
+        raise RuntimeError(
+            "auxiliary.sensitive_data requires an explicitly configured approved "
+            "provider/model and cannot use auto or main. This prevents raw "
+            "Sensitive data from falling back to the primary model."
+        )
     effective_extra_body = _get_task_extra_body(task)
     effective_extra_body.update(extra_body or {})
 
@@ -5221,7 +5228,7 @@ def call_llm(
             else:
                 fb_client, fb_model, fb_label = _try_configured_fallback_chain(
                     task, resolved_provider or "auto", reason=reason)
-                if fb_client is None:
+                if fb_client is None and task != _SENSITIVE_DATA_TASK:
                     fb_client, fb_model, fb_label = _try_main_agent_model_fallback(
                         resolved_provider, task, reason=reason)
 
@@ -5333,6 +5340,12 @@ async def async_call_llm(
     """
     resolved_provider, resolved_model, resolved_base_url, resolved_api_key, resolved_api_mode = _resolve_task_provider_model(
         task, provider, model, base_url, api_key)
+    if task == _SENSITIVE_DATA_TASK and (resolved_provider or "").strip().lower() in {"", "auto", "main"}:
+        raise RuntimeError(
+            "auxiliary.sensitive_data requires an explicitly configured approved "
+            "provider/model and cannot use auto or main. This prevents raw "
+            "Sensitive data from falling back to the primary model."
+        )
     effective_extra_body = _get_task_extra_body(task)
     effective_extra_body.update(extra_body or {})
 
@@ -5619,7 +5632,7 @@ async def async_call_llm(
             else:
                 fb_client, fb_model, fb_label = _try_configured_fallback_chain(
                     task, resolved_provider or "auto", reason=reason)
-                if fb_client is None:
+                if fb_client is None and task != _SENSITIVE_DATA_TASK:
                     fb_client, fb_model, fb_label = _try_main_agent_model_fallback(
                         resolved_provider, task, reason=reason)
 

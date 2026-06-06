@@ -1189,6 +1189,20 @@ DEFAULT_CONFIG = {
             "timeout": 120,        # seconds — compression summarises large contexts; increase for local models
             "extra_body": {},
         },
+        "sensitive_data": {
+            # Approved model for LLM ingestion of files/data marked or assumed
+            # Sensitive (Excel, Word, SQLite/database files). Unlike most
+            # auxiliary tasks, the sensitive-data reader refuses provider=auto
+            # so raw sensitive content never silently falls back to the
+            # primary model. Set this to an approved hosted provider/model or
+            # a local OpenAI-compatible endpoint.
+            "provider": "auto",
+            "model": "",
+            "base_url": "",
+            "api_key": "",
+            "timeout": 180,
+            "extra_body": {},
+        },
         # Note: session_search no longer uses an auxiliary LLM (PR #27590 —
         # single-shape tool returns DB content directly). The old
         # ``auxiliary.session_search.*`` block was removed here. Existing
@@ -5673,6 +5687,7 @@ def show_config():
     aux_tasks = {
         "Vision":      auxiliary.get('vision', {}),
         "Web extract": auxiliary.get('web_extract', {}),
+        "Sensitive":   auxiliary.get('sensitive_data', {}),
     }
     has_overrides = any(
         t.get('provider', 'auto') != 'auto' or t.get('model', '')

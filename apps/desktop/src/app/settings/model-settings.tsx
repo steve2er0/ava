@@ -29,6 +29,7 @@ const AUX_TASKS: readonly AuxTaskMeta[] = [
   { key: 'vision', label: 'Vision', hint: 'Image analysis' },
   { key: 'web_extract', label: 'Web extract', hint: 'Page summarization' },
   { key: 'compression', label: 'Compression', hint: 'Context compaction' },
+  { key: 'sensitive_data', label: 'Sensitive data', hint: 'Approved data reader' },
   { key: 'session_search', label: 'Session search', hint: 'Recall queries' },
   { key: 'skills_hub', label: 'Skills hub', hint: 'Skill search' },
   { key: 'approval', label: 'Approval', hint: 'Smart auto-approve' },
@@ -164,10 +165,13 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
     (task: string) => {
       const current = auxiliary?.tasks.find(entry => entry.task === task)
 
+      const isSensitiveData = task === 'sensitive_data'
       const initialProvider =
-        current?.provider && current.provider !== 'auto' ? current.provider : (mainModel?.provider ?? '')
+        current?.provider && current.provider !== 'auto'
+          ? current.provider
+          : (isSensitiveData ? '' : (mainModel?.provider ?? ''))
 
-      const initialModel = current?.model || mainModel?.model || ''
+      const initialModel = current?.model || (isSensitiveData ? '' : mainModel?.model || '')
       setAuxDraft({ provider: initialProvider, model: initialModel })
       setEditingAuxTask(task)
     },
@@ -265,20 +269,23 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
             const current = auxiliary?.tasks.find(entry => entry.task === meta.key)
             const isAuto = !current || !current.provider || current.provider === 'auto'
             const isEditing = editingAuxTask === meta.key
+            const isSensitiveData = meta.key === 'sensitive_data'
 
             return (
               <ListRow
                 action={
                   !isEditing && (
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Button
-                        disabled={!mainModel || applying}
-                        onClick={() => void setAuxiliaryToMain(meta.key)}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        Set to main
-                      </Button>
+                      {!isSensitiveData && (
+                        <Button
+                          disabled={!mainModel || applying}
+                          onClick={() => void setAuxiliaryToMain(meta.key)}
+                          size="sm"
+                          variant="ghost"
+                        >
+                          Set to main
+                        </Button>
+                      )}
                       <Button
                         disabled={!providers.length || applying}
                         onClick={() => beginAuxiliaryEdit(meta.key)}
@@ -338,7 +345,9 @@ export function ModelSettings({ onMainModelChanged }: ModelSettingsProps) {
                 }
                 description={
                   <span className="font-mono text-[0.68rem]">
-                    {isAuto ? 'auto · use main model' : `${current.provider} · ${current.model || '(provider default)'}`}
+                    {isAuto
+                      ? (isSensitiveData ? 'unconfigured · choose approved model' : 'auto · use main model')
+                      : `${current.provider} · ${current.model || '(provider default)'}`}
                   </span>
                 }
                 key={meta.key}
