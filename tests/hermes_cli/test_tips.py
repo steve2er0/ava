@@ -31,6 +31,12 @@ class TestTipsCorpus:
         for i, tip in enumerate(TIPS):
             assert tip == tip.strip(), f"Tip {i} has leading/trailing whitespace"
 
+    def test_no_obsolete_soul_identity_tips(self):
+        joined = "\n".join(TIPS)
+        assert "SOUL.md completely replaces" not in joined
+        assert "make Hermes your own" not in joined
+        assert "SOUL.md is auto-seeded" not in joined
+
 
 class TestGetRandomTip:
     """Validate the get_random_tip() function."""
