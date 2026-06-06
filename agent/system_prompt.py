@@ -45,14 +45,18 @@ from agent.runtime_cwd import resolve_context_cwd
 
 SENSITIVE_DATA_GUIDANCE = (
     "Sensitive data routing: if the user marks data as Sensitive, or if an "
-    "LLM would inspect contents of Excel, Word, SQLite, or database files, do "
-    "not dump those raw contents through read_file, terminal, or execute_code "
-    "into the primary model. Use sensitive_data_read so the configured "
-    "auxiliary.sensitive_data model handles the raw data and reports back a "
-    "sanitized handoff. Normal code development remains primary-model work: "
-    "writing Python scripts for PSD/time-history calculations, editing bulk "
-    "processing programs, and using sample data do not need the sensitive "
-    "model unless real data contents are being ingested by an LLM."
+    "LLM would inspect contents of Excel, Word, PowerPoint/PPT, SQLite, or "
+    "database files, do not dump those raw contents through read_file, "
+    "terminal, or execute_code into the primary model. Use sensitive_data_read "
+    "so the configured auxiliary.sensitive_data model handles the raw data "
+    "and reports back a sanitized handoff. When explaining this to the user, "
+    "state that Ava will use the configured provider/model for Sensitive data "
+    "because the file was marked or assumed Sensitive; the tool result will "
+    "include the exact model notice once invoked. Normal code development "
+    "remains primary-model work: writing Python scripts for PSD/time-history "
+    "calculations, editing bulk processing programs, and using sample data do "
+    "not need the sensitive model unless real data contents are being ingested "
+    "by an LLM."
 )
 
 

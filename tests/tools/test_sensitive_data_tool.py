@@ -68,9 +68,31 @@ def _write_minimal_docx(path):
         zf.writestr("word/document.xml", document_xml)
 
 
+def _write_minimal_pptx(path):
+    slide_xml = """
+    <p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+      <p:cSld>
+        <p:spTree>
+          <p:sp>
+            <p:txBody>
+              <a:p><a:r><a:t>Program Review</a:t></a:r></a:p>
+              <a:p><a:r><a:t>Customer Apollo, project code X-17.</a:t></a:r></a:p>
+            </p:txBody>
+          </p:sp>
+        </p:spTree>
+      </p:cSld>
+    </p:sld>
+    """
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("ppt/slides/slide1.xml", slide_xml)
+
+
 def test_sensitive_data_extension_detection():
     assert is_sensitive_data_path("flight_data.xlsx")
     assert is_sensitive_data_path("memo.docx")
+    assert is_sensitive_data_path("briefing.pptx")
+    assert is_sensitive_data_path("legacy.ppt")
     assert is_sensitive_data_path("ops.sqlite")
     assert not is_sensitive_data_path("processor.py")
 
@@ -97,6 +119,19 @@ def test_extracts_sample_docx_without_extra_dependencies(tmp_path):
     assert "Flight Readiness Memo" in extraction.content
     assert "JFK-LAX" in extraction.content
     assert extraction.metadata["tables"] == 1
+
+
+def test_extracts_sample_pptx_without_extra_dependencies(tmp_path):
+    path = tmp_path / "briefing.pptx"
+    _write_minimal_pptx(path)
+
+    extraction = extract_sensitive_file(path)
+
+    assert extraction.kind == "powerpoint"
+    assert "Slide 1:" in extraction.content
+    assert "Program Review" in extraction.content
+    assert "project code X-17" in extraction.content
+    assert extraction.metadata["slides"] == 1
 
 
 def test_extracts_sample_sqlite_with_stdlib(tmp_path):
@@ -165,8 +200,14 @@ def test_read_and_search_file_block_sensitive_data_types():
     read_result = json.loads(read_file_tool("flight_data.xlsx"))
     assert read_result["suggested_tool"] == "sensitive_data_read"
 
+    ppt_result = json.loads(read_file_tool("briefing.pptx"))
+    assert ppt_result["suggested_tool"] == "sensitive_data_read"
+
     search_result = json.loads(search_tool("A100", path="flight_data.xlsx"))
     assert search_result["suggested_tool"] == "sensitive_data_read"
 
-    glob_result = json.loads(search_tool("A100", path=".", file_glob="*.xlsx"))
+    ppt_search_result = json.loads(search_tool("Apollo", path="briefing.pptx"))
+    assert ppt_search_result["suggested_tool"] == "sensitive_data_read"
+
+    glob_result = json.loads(search_tool("A100", path=".", file_glob="*.pptx"))
     assert glob_result["suggested_tool"] == "sensitive_data_read"

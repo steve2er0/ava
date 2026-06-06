@@ -35,6 +35,8 @@ SENSITIVE_DATA_EXTENSIONS = frozenset({
     ".xls",
     ".docx",
     ".doc",
+    ".pptx",
+    ".ppt",
     ".db",
     ".sqlite",
     ".sqlite3",
@@ -47,6 +49,7 @@ _MAX_COLUMNS = 30
 _MAX_CELL_CHARS = 200
 _MAX_DOC_BLOCKS = 180
 _MAX_DB_TABLES = 8
+_MAX_PPT_SLIDES = 80
 
 
 @dataclass
@@ -224,6 +227,39 @@ def _extract_docx(path: Path) -> Extraction:
     return Extraction(kind="word", content=content, metadata=metadata, truncated=truncated)
 
 
+def _extract_pptx(path: Path) -> Extraction:
+    lines: list[str] = []
+    metadata: dict[str, Any] = {"slides": 0}
+    with zipfile.ZipFile(path) as zf:
+        slide_paths = sorted(
+            (
+                name for name in zf.namelist()
+                if re.match(r"ppt/slides/slide\d+\.xml$", name)
+            ),
+            key=lambda name: int(re.search(r"slide(\d+)\.xml$", name).group(1)),
+        )
+        for slide_path in slide_paths[:_MAX_PPT_SLIDES]:
+            root = _read_zip_xml(zf, slide_path)
+            if root is None:
+                continue
+            slide_num = int(re.search(r"slide(\d+)\.xml$", slide_path).group(1))
+            metadata["slides"] += 1
+            lines.append(f"Slide {slide_num}:")
+            text_blocks: list[str] = []
+            for paragraph in root.findall(".//{*}p"):
+                text = _clip_text(_text_from(paragraph), 800)
+                if text:
+                    text_blocks.append(text)
+            for idx, text in enumerate(text_blocks, start=1):
+                lines.append(f"  P{idx}: {text}")
+            if not text_blocks:
+                lines.append("  (no extractable text)")
+            lines.append("")
+    content, truncated = _clip_lines(lines)
+    truncated = truncated or metadata["slides"] >= _MAX_PPT_SLIDES
+    return Extraction(kind="powerpoint", content=content, metadata=metadata, truncated=truncated)
+
+
 def _quote_sql_identifier(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
@@ -278,12 +314,16 @@ def extract_sensitive_file(path: Path) -> Extraction:
         return _extract_xlsx(path)
     if ext == ".docx":
         return _extract_docx(path)
+    if ext == ".pptx":
+        return _extract_pptx(path)
     if ext in {".sqlite", ".sqlite3", ".db"}:
         return _extract_sqlite(path)
     if ext == ".xls":
         raise ValueError("Legacy .xls files are detected as Sensitive but are not parsed in v1. Convert to .xlsx.")
     if ext == ".doc":
         raise ValueError("Legacy .doc files are detected as Sensitive but are not parsed in v1. Convert to .docx.")
+    if ext == ".ppt":
+        raise ValueError("Legacy .ppt files are detected as Sensitive but are not parsed in v1. Convert to .pptx.")
     raise ValueError(f"Unsupported sensitive data file type: {ext or '(none)'}")
 
 
@@ -403,20 +443,21 @@ def sensitive_data_read_tool(
 SENSITIVE_DATA_READ_SCHEMA = {
     "name": "sensitive_data_read",
     "description": (
-        "Inspect Excel, Word, or SQLite/database contents through the configured "
-        "approved sensitive-data model, then return only a sanitized handoff to "
-        "the primary model. Use this when a file/task is marked Sensitive or is "
-        "assumed Sensitive by type (.xlsx, .xls, .docx, .doc, .db, .sqlite, "
-        ".sqlite3). Do not use read_file, terminal, or execute_code to dump raw "
-        "sensitive contents into the primary model. Ordinary code/script work "
-        "around data processing can stay on the primary model."
+        "Inspect Excel, Word, PowerPoint, or SQLite/database contents through "
+        "the configured approved sensitive-data model, then return only a "
+        "sanitized handoff to the primary model. Use this when a file/task is "
+        "marked Sensitive or is assumed Sensitive by type (.xlsx, .xls, .docx, "
+        ".doc, .pptx, .ppt, .db, .sqlite, .sqlite3). Do not use read_file, "
+        "terminal, or execute_code to dump raw sensitive contents into the "
+        "primary model. Ordinary code/script work around data processing can "
+        "stay on the primary model."
     ),
     "parameters": {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path to the Excel/Word/SQLite data file.",
+                "description": "Path to the Excel/Word/PowerPoint/SQLite data file.",
             },
             "question": {
                 "type": "string",
