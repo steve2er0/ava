@@ -655,6 +655,7 @@ platform_toolsets:
 #   todo         - todo (in-memory task planning, no deps)
 #   tts          - text_to_speech  (Edge TTS free, or ELEVENLABS/OPENAI/MINIMAX/MISTRAL key)
 #   cronjob      - cronjob (create/list/update/pause/resume/run/remove scheduled tasks)
+#   engineering  - approved NASTRAN/dynamics tools with summary-first LLM exposure
 #
 # PRESETS (curated bundles):
 #   hermes-cli       - secure local-first coding/files/memory/session tools
@@ -684,6 +685,8 @@ platform_toolsets:
 #   session_search - Search and recall past conversations (FTS5 + OpenAI summarization)
 #   tts          - Text-to-speech (Edge TTS free, ElevenLabs, OpenAI, MiniMax, Mistral)
 #   cronjob      - Schedule and manage automated tasks (CLI-only)
+#   engineering  - Approved engineering tools: NASTRAN checks, SOL111, PCH/F06,
+#                  PSD/SRS/FDS, and HDF5 summaries
 #
 # Composite toolsets:
 #   debugging    - terminal + web + file (for troubleshooting)

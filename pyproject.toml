@@ -41,6 +41,8 @@ dependencies = [
   "ruamel.yaml==0.18.17",
   "requests==2.33.0",  # CVE-2026-25645
   "jinja2==3.1.6",
+  # HDF5 inspection for approved engineering data-summary tools.
+  "h5py==3.16.0",
   # Bumped from 2.12.5 to 2.13.4 to pull in pydantic-core 2.46.4.
   # pydantic-core 2.41.5 (pulled by 2.12.5) segfaults when the OpenAI SDK's
   # Responses API resource is exercised from a non-main thread, which is the
@@ -218,6 +220,7 @@ all = [
 ava = "hermes_cli.main:main"
 ava-agent = "run_agent:main"
 ava-acp = "acp_adapter.entry:main"
+ava-tool = "ava_runtime.engineering_tools:main"
 hermes = "hermes_cli.main:main"
 hermes-agent = "run_agent:main"
 hermes-acp = "acp_adapter.entry:main"

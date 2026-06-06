@@ -208,6 +208,12 @@ TOOLSETS = {
         "tools": ["execute_code"],
         "includes": []
     },
+
+    "engineering": {
+        "description": "Approved AVA engineering tools: NASTRAN checks, SOL111 workflows, PCH/F06 parsing, PSD/SRS/FDS, and HDF5 summaries",
+        "tools": ["engineering_tool_catalog", "engineering_tool_run"],
+        "includes": []
+    },
     
     "delegation": {
         "description": "Spawn subagents with isolated context for complex subtasks",
