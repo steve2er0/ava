@@ -6,7 +6,7 @@ description: "Find, install, use, and create skills — on-demand knowledge that
 
 # Working with Skills
 
-Skills are on-demand knowledge documents that teach Hermes how to handle specific tasks — from generating ASCII art to managing GitHub PRs. This guide walks you through using them day to day.
+Skills are on-demand knowledge documents that teach Hermes how to handle specific tasks — from generating ASCII art to searching arXiv. This guide walks you through using them day to day.
 
 For the full technical reference, see [Skills System](/user-guide/features/skills).
 
@@ -29,9 +29,9 @@ This shows a compact list with names and descriptions:
 ```
 ascii-art         Generate ASCII art using pyfiglet, cowsay, boxes...
 arxiv             Search and retrieve academic papers from arXiv...
-github-pr-workflow Full PR lifecycle — create branches, commit...
 plan              Plan mode — inspect context, write a markdown...
-excalidraw        Create hand-drawn style diagrams using Excalidraw...
+powerpoint        Create, read, edit .pptx decks, slides, notes...
+songsee           Audio spectrograms/features via CLI...
 ```
 
 ### Searching for a Skill
@@ -64,10 +64,10 @@ Every installed skill is automatically a slash command. Just type its name:
 # Load a skill and give it a task
 /ascii-art Make a banner that says "HELLO WORLD"
 /plan Design a REST API for a todo app
-/github-pr-workflow Create a PR for the auth refactor
+/powerpoint Create a 5-slide project update
 
 # Just the skill name (no task) loads it and lets you describe what you need
-/excalidraw
+/arxiv
 ```
 
 You can also trigger skills through natural conversation — ask Hermes to use a specific skill, and it will load it via the `skill_view` tool.
@@ -127,10 +127,10 @@ Plugins can bundle their own skills using namespaced names (`plugin:skill`). Thi
 
 ```bash
 # Load a plugin skill by its qualified name
-skill_view("superpowers:writing-plans")
+skill_view("superpowers:plan")
 
 # Built-in skill with the same base name is unaffected
-skill_view("writing-plans")
+skill_view("plan")
 ```
 
 Plugin skills are **not** listed in the system prompt and don't appear in `skills_list`. They're opt-in — load them explicitly when you know a plugin provides one. When loaded, the agent sees a banner listing sibling skills from the same plugin.
@@ -147,10 +147,9 @@ Some skills declare configuration they need in their frontmatter:
 metadata:
   hermes:
     config:
-      - key: tenor.api_key
-        description: "Tenor API key for GIF search"
-        prompt: "Enter your Tenor API key"
-        url: "https://developers.google.com/tenor/guides/quickstart"
+      - key: my_exporter.output_dir
+        description: "Default output directory for generated reports"
+        prompt: "Enter the default report output directory"
 ```
 
 When a skill with config is first loaded, Hermes prompts you for the values. They're stored in `config.yaml` under `skills.config.*`.
@@ -159,7 +158,7 @@ Manage skill config from the CLI:
 
 ```bash
 # Interactive config for a specific skill
-hermes skills config gif-search
+hermes skills config my-exporter
 
 # View all skill config
 hermes config show | grep '^skills\.config'

@@ -345,7 +345,7 @@ curl -N -X POST http://localhost:8642/api/sessions/$ID/chat/stream \
 ```bash
 curl http://localhost:8642/v1/skills \
   -H "Authorization: Bearer $API_SERVER_KEY"
-# → [{"name": "github-pr-workflow", "description": "...", "category": "..."}, ...]
+# → [{"name": "arxiv", "description": "...", "category": "research"}, ...]
 
 curl http://localhost:8642/v1/toolsets \
   -H "Authorization: Bearer $API_SERVER_KEY"

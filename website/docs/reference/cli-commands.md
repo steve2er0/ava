@@ -1005,8 +1005,8 @@ hermes skills install https://example.com/SKILL.md --name my-skill        # Over
 hermes skills check
 hermes skills update
 hermes skills config
-hermes skills reset google-workspace
-hermes skills reset google-workspace --restore --yes
+hermes skills reset powerpoint
+hermes skills reset powerpoint --restore --yes
 hermes skills opt-out                  # stop future bundled-skill seeding (nothing deleted)
 hermes skills opt-out --remove --yes   # also delete UNMODIFIED bundled skills
 hermes skills opt-in --sync            # undo: remove marker and re-seed now
@@ -1041,15 +1041,14 @@ Subcommands:
 Examples:
 
 ```bash
-hermes bundles create backend-dev \
-  --skill github-code-review \
-  --skill test-driven-development \
-  --skill github-pr-workflow \
-  -d "Backend feature work"
+hermes bundles create research-planning \
+  --skill arxiv \
+  --skill plan \
+  -d "Research planning"
 
 hermes bundles list
-hermes bundles show backend-dev
-hermes bundles delete backend-dev
+hermes bundles show research-planning
+hermes bundles delete research-planning
 ```
 
 In a chat session, `/bundles` lists installed bundles and `/<bundle-name>` loads one.

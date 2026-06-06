@@ -36,8 +36,8 @@ hermes chat --provider openrouter  # Force OpenRouter
 hermes chat --toolsets "web,terminal,skills"
 
 # Start with one or more skills preloaded
-hermes -s hermes-agent-dev,github-auth
-hermes chat -s github-pr-workflow -q "open a draft PR"
+hermes -s hermes-agent,plan
+hermes chat -s arxiv -q "find recent transformer papers"
 
 # Resume previous sessions
 hermes --continue             # Resume the most recent CLI session (-c)
@@ -168,8 +168,8 @@ Then type `/status`, `/gpu`, or `/restart` in any chat. See the [Configuration g
 If you already know which skills you want active for the session, pass them at launch time:
 
 ```bash
-hermes -s hermes-agent-dev,github-auth
-hermes chat -s github-pr-workflow -s github-auth
+hermes -s hermes-agent,plan
+hermes chat -s arxiv -s plan
 ```
 
 Hermes loads each named skill into the session prompt before the first turn. The same flag works in interactive mode and single-query mode.
@@ -179,12 +179,12 @@ Hermes loads each named skill into the session prompt before the first turn. The
 Every installed skill in `~/.hermes/skills/` is automatically registered as a slash command. The skill name becomes the command:
 
 ```
-/gif-search funny cats
-/axolotl help me fine-tune Llama 3 on my dataset
-/github-pr-workflow create a PR for the auth refactor
+/arxiv find recent papers about diffusion transformers
+/powerpoint create a 5-slide project update
+/plan design a rollout for migrating our auth provider
 
 # Just the skill name loads it and lets the agent ask what you need:
-/excalidraw
+/ascii-art
 ```
 
 ## Personalities

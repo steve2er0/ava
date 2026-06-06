@@ -53,13 +53,13 @@ Every installed skill is automatically available as a slash command:
 
 ```bash
 # In the CLI or any messaging platform:
-/gif-search funny cats
-/axolotl help me fine-tune Llama 3 on my dataset
-/github-pr-workflow create a PR for the auth refactor
+/ascii-art Make a banner that says "HELLO WORLD"
+/arxiv find recent papers about diffusion transformers
+/powerpoint create a 5-slide project update
 /plan design a rollout for migrating our auth provider
 
 # Just the skill name loads it and lets the agent ask what you need:
-/excalidraw
+/powerpoint
 ```
 
 The bundled `plan` skill is a good example. Running `/plan [request]` loads the skill's instructions, telling Hermes to inspect context if needed, write a markdown implementation plan instead of executing the task, and save the result under `.hermes/plans/` relative to the active workspace/backend working directory.
@@ -298,17 +298,16 @@ Skill bundles are tiny YAML files that group several skills under a single slash
 
 ```bash
 # Create a bundle for backend feature work
-hermes bundles create backend-dev \
-  --skill github-code-review \
-  --skill test-driven-development \
-  --skill github-pr-workflow \
-  -d "Backend feature work — review, test, PR workflow"
+hermes bundles create research-planning \
+  --skill arxiv \
+  --skill plan \
+  -d "Research planning — literature search and implementation plan"
 ```
 
 Then in the CLI or any gateway platform:
 
 ```
-/backend-dev refactor the auth middleware
+/research-planning compare recent vibration-analysis papers
 ```
 
 The agent receives all three skills loaded into one user message, with any text after the slash command attached as a user instruction.
@@ -318,15 +317,14 @@ The agent receives all three skills loaded into one user message, with any text 
 Bundles live in **`~/.hermes/skill-bundles/<slug>.yaml`** and look like this:
 
 ```yaml
-name: backend-dev
-description: Backend feature work — review, test, PR workflow.
+name: research-planning
+description: Research planning — literature search and implementation plan.
 skills:
-  - github-code-review
-  - test-driven-development
-  - github-pr-workflow
+  - arxiv
+  - plan
 instruction: |
-  Always start by writing failing tests, then implement.
-  Open the PR through the standard workflow with co-author tags.
+  Start by finding relevant papers.
+  Then write a concise implementation plan.
 ```
 
 Fields:
@@ -425,8 +423,8 @@ hermes skills check                               # Check installed hub skills f
 hermes skills update                              # Reinstall hub skills with upstream changes when needed
 hermes skills audit                               # Re-scan all hub skills for security
 hermes skills uninstall k8s                       # Remove a hub skill
-hermes skills reset google-workspace              # Un-stick a bundled skill from "user-modified" (see below)
-hermes skills reset google-workspace --restore    # Also restore the bundled version, deleting your local edits
+hermes skills reset powerpoint                    # Un-stick a bundled skill from "user-modified" (see below)
+hermes skills reset powerpoint --restore          # Also restore the bundled version, deleting your local edits
 hermes skills publish skills/my-skill --to github --repo owner/repo
 hermes skills snapshot export setup.json          # Export skill config
 hermes skills tap add myorg/skills-repo           # Add a custom GitHub source
@@ -775,21 +773,21 @@ The protection is good, but it has one sharp edge. If you edit a bundled skill a
 ```bash
 # Safe: clears the manifest entry for this skill. Your current copy is preserved,
 # but the next sync re-baselines against it so future updates work normally.
-hermes skills reset google-workspace
+hermes skills reset powerpoint
 
 # Full restore: also deletes your local copy and re-copies the current bundled
 # version. Use this when you want the pristine upstream skill back.
-hermes skills reset google-workspace --restore
+hermes skills reset powerpoint --restore
 
 # Non-interactive (e.g. in scripts or TUI mode) — skip the --restore confirmation.
-hermes skills reset google-workspace --restore --yes
+hermes skills reset powerpoint --restore --yes
 ```
 
 The same command works in chat as a slash command:
 
 ```text
-/skills reset google-workspace
-/skills reset google-workspace --restore
+/skills reset powerpoint
+/skills reset powerpoint --restore
 ```
 
 :::note Profiles
@@ -808,7 +806,7 @@ All the same commands work with `/skills`:
 /skills install openai/skills/skill-creator --force
 /skills check
 /skills update
-/skills reset google-workspace
+/skills reset powerpoint
 /skills list
 ```
 

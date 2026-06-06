@@ -9,7 +9,6 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [ASCII, Art, Banners, Creative, Unicode, Text-Art, pyfiglet, figlet, cowsay, boxes]
-    related_skills: [excalidraw]
 
 ---
 

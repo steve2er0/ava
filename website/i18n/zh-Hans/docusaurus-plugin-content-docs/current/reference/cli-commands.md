@@ -824,8 +824,8 @@ hermes skills install https://example.com/SKILL.md --name my-skill        # fron
 hermes skills check
 hermes skills update
 hermes skills config
-hermes skills reset google-workspace
-hermes skills reset google-workspace --restore --yes
+hermes skills reset powerpoint
+hermes skills reset powerpoint --restore --yes
 ```
 
 注意：
@@ -857,15 +857,14 @@ Skill bundle 将多个 skill 归组到一个 `/<bundle-name>` 斜杠命令下。
 示例：
 
 ```bash
-hermes bundles create backend-dev \
-  --skill github-code-review \
-  --skill test-driven-development \
-  --skill github-pr-workflow \
-  -d "Backend feature work"
+hermes bundles create research-planning \
+  --skill arxiv \
+  --skill plan \
+  -d "Research planning"
 
 hermes bundles list
-hermes bundles show backend-dev
-hermes bundles delete backend-dev
+hermes bundles show research-planning
+hermes bundles delete research-planning
 ```
 
 在聊天会话中，`/bundles` 列出已安装的 bundle，`/<bundle-name>` 加载某个 bundle。

@@ -34,7 +34,7 @@ skills/
 │       └── scripts/              # Optional: helper scripts
 │           └── search_arxiv.py
 ├── productivity/
-│   └── ocr-and-documents/
+│   └── powerpoint/
 │       ├── SKILL.md
 │       ├── scripts/
 │       └── references/
@@ -256,7 +256,7 @@ When loaded, Hermes checks if these files exist. Missing files trigger `setup_ne
 Use `required_environment_variables` for simple API keys and tokens (strings stored in `~/.hermes/.env`). Use `required_credential_files` for OAuth token files, client secrets, service account JSON, certificates, or any credential that's a file on disk.
 :::
 
-See the `skills/productivity/google-workspace/SKILL.md` for a complete example using both.
+See `skills/productivity/powerpoint/SKILL.md` for a complete example with supporting files.
 
 ## Skill Guidelines
 

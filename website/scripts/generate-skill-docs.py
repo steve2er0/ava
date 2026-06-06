@@ -29,9 +29,7 @@ SKILL_SOURCES = [
     ("optional", REPO / "optional-skills"),
 ]
 
-# Pages the user had previously hand-written in user-guide/skills/.
-# We leave these alone (they get first-class sidebar treatment separately).
-HAND_WRITTEN = {"godmode.md", "google-workspace.md"}
+HAND_WRITTEN: set[str] = set()
 
 
 _FENCE_RE = re.compile(r"^(?P<indent>\s*)(?P<fence>```+|~~~+)", re.MULTILINE)
@@ -583,10 +581,9 @@ def build_sidebar_items(entries: list[tuple[dict[str, Any], dict[str, Any]]]) ->
 
     Structure:
     Skills
-    ├── (hand-written pages first: godmode, google-workspace)
     ├── Bundled
-    │   ├── apple
-    │   │   ├── apple-apple-notes
+    │   ├── research
+    │   │   ├── research-arxiv
     │   │   └── ...
     │   └── ...
     └── Optional
@@ -656,8 +653,8 @@ def write_sidebar(entries):
     #   ├── reference/skills-catalog
     #   ├── reference/optional-skills-catalog
     #   ├── Bundled
-    #   │   ├── apple/
-    #   │   │   ├── apple-apple-notes
+    #   │   ├── research/
+    #   │   │   ├── research-arxiv
     #   │   │   └── ...
     #   │   └── ...
     #   └── Optional

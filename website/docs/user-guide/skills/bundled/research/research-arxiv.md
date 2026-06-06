@@ -21,7 +21,6 @@ Search arXiv papers by keyword, author, category, or ID.
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `Research`, `Arxiv`, `Papers`, `Academic`, `Science`, `API` |
-| Related skills | [`ocr-and-documents`](/docs/user-guide/skills/bundled/productivity/productivity-ocr-and-documents) |
 
 ## Reference: full SKILL.md
 
@@ -173,7 +172,7 @@ web_extract(urls=["https://arxiv.org/abs/2402.03300"])
 web_extract(urls=["https://arxiv.org/pdf/2402.03300"])
 ```
 
-For local PDF processing, see the `ocr-and-documents` skill.
+For local PDF processing, use the available PDF extraction and OCR tools in the current environment.
 
 ## Common Categories
 
@@ -283,7 +282,7 @@ curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=Yann+LeCun
 - arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`)
 - PDF: `https://arxiv.org/pdf/{id}` — Abstract: `https://arxiv.org/abs/{id}`
 - HTML (when available): `https://arxiv.org/html/{id}`
-- For local PDF processing, see the `ocr-and-documents` skill
+- For local PDF processing, use available PDF extraction and OCR tools in the current environment
 
 ## ID Versioning
 

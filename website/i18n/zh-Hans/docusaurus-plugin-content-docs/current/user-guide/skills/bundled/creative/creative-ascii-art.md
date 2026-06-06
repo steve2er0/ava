@@ -21,7 +21,6 @@ ASCII art：pyfiglet、cowsay、boxes、image-to-ascii。
 | 许可证 | MIT |
 | 平台 | linux, macos, windows |
 | 标签 | `ASCII`, `Art`, `Banners`, `Creative`, `Unicode`, `Text-Art`, `pyfiglet`, `figlet`, `cowsay`, `boxes` |
-| 相关 skill | [`excalidraw`](/user-guide/skills/bundled/creative/creative-excalidraw) |
 
 ## 参考：完整 SKILL.md
 
