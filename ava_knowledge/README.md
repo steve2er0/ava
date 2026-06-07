@@ -16,4 +16,4 @@ This directory is the controlled knowledge workspace for the Acoustic and Vibrat
 
 ## How it fits into the AVA pipeline
 
-AVA knowledge flows from `raw/` source intake to `processed/` normalized text, then into `extracts/` for rule-ready statements. `concepts/` stabilize engineering meaning, `rules/` encode deterministic logic, `skills/` apply that logic in workflows, `tests/` verify behavior, and `index/` keeps the system navigable.
+AVA knowledge flows from `raw/` source intake to `processed/` normalized text, then into `extracts/` for rule-ready statements. `concepts/` stabilize engineering meaning, `rules/` encode deterministic logic, `skills/` apply that logic in workflows, `tests/` verify behavior, `../ava_core/validation/` gates approved engineering skills with golden cases and approval records, and `index/` keeps the system navigable.

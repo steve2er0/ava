@@ -1,0 +1,64 @@
+{
+  "skill": "compare_processed_psds",
+  "version": "v1",
+  "description": "Golden cases for comparing processed PSD datasets across channels and frequency grids.",
+  "cases": [
+    {
+      "id": "synthetic_psd_case",
+      "title": "Synthetic PSD case",
+      "purpose": "Verify exact-ratio and RMS comparison behavior on generated PSD data with a known answer.",
+      "inputs": {
+        "baseline": "synthetic/reference_flat_psd.csv",
+        "candidate": "synthetic/candidate_flat_psd.csv"
+      },
+      "checks": [
+        "matching channels are detected",
+        "frequency grid is accepted",
+        "PSD ratio summary matches the known synthetic delta",
+        "integrated RMS delta is within tolerance"
+      ]
+    },
+    {
+      "id": "known_ar01_ar02_comparison_case",
+      "title": "Known AR01/AR02 comparison case",
+      "purpose": "Verify the review workflow on a representative AR01-to-AR02 comparison with known channel-level conclusions.",
+      "inputs": {
+        "baseline": "sanitized/ar01_processed_psd_manifest.json",
+        "candidate": "sanitized/ar02_processed_psd_manifest.json"
+      },
+      "checks": [
+        "known changed channels are flagged",
+        "known unchanged channels remain below review threshold",
+        "review summary separates global findings from channel findings"
+      ]
+    },
+    {
+      "id": "missing_channel_case",
+      "title": "Missing channel case",
+      "purpose": "Verify that missing baseline or candidate channels produce a controlled finding instead of a silent pass.",
+      "inputs": {
+        "baseline": "synthetic/reference_multi_channel_psd.csv",
+        "candidate": "synthetic/candidate_missing_channel_psd.csv"
+      },
+      "checks": [
+        "missing candidate channel is reported",
+        "status is review_required",
+        "available channel comparisons still run"
+      ]
+    },
+    {
+      "id": "mismatched_frequency_grid_case",
+      "title": "Mismatched frequency grid case",
+      "purpose": "Verify frequency-grid mismatch handling and interpolation/abort policy.",
+      "inputs": {
+        "baseline": "synthetic/reference_frequency_grid_psd.csv",
+        "candidate": "synthetic/candidate_shifted_frequency_grid_psd.csv"
+      },
+      "checks": [
+        "frequency grid mismatch is detected",
+        "maximum grid delta is reported",
+        "comparison follows the declared interpolation policy"
+      ]
+    }
+  ]
+}

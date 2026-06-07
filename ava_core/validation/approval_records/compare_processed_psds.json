@@ -1,0 +1,26 @@
+{
+  "skill": "compare_processed_psds",
+  "skill_type": "engineering",
+  "status": "approved",
+  "approved_version": "v1",
+  "approval_date": "2026-06-07",
+  "approved_by": "AVA validation gate",
+  "skill_path": "ava_knowledge/skills/compare_processed_psds",
+  "validated_on": [
+    "synthetic_psd_case",
+    "known_ar01_ar02_comparison_case",
+    "missing_channel_case",
+    "mismatched_frequency_grid_case"
+  ],
+  "golden_cases": "ava_core/validation/golden_cases/compare_processed_psds.json",
+  "expected_outputs": "ava_core/validation/expected_outputs/compare_processed_psds.json",
+  "regression_tests": "ava_core/validation/regression_tests/compare_processed_psds.md",
+  "approval_basis": [
+    "synthetic PSD case",
+    "known AR01/AR02 comparison case",
+    "missing channel case",
+    "mismatched frequency grid case"
+  ],
+  "llm_exposure_policy": "no raw PSD arrays are required in the LLM transcript; expose summaries, findings, and artifact paths only",
+  "notes": "This record defines the minimum validation evidence required for the compare_processed_psds skill to be treated as approved."
+}

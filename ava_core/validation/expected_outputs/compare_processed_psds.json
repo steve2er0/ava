@@ -1,0 +1,54 @@
+{
+  "skill": "compare_processed_psds",
+  "version": "v1",
+  "expected_outputs": [
+    {
+      "case_id": "synthetic_psd_case",
+      "expected_status": "pass",
+      "required_findings": [
+        "all expected channels compared",
+        "known PSD ratio recovered",
+        "RMS delta within tolerance"
+      ],
+      "tolerances": {
+        "psd_ratio_percent": 0.5,
+        "rms_delta_percent": 0.5
+      }
+    },
+    {
+      "case_id": "known_ar01_ar02_comparison_case",
+      "expected_status": "review_required",
+      "required_findings": [
+        "AR01/AR02 comparison completed",
+        "known changed channels flagged",
+        "unchanged channels summarized separately"
+      ],
+      "tolerances": {
+        "frequency_match_hz": 0.0,
+        "rms_delta_percent": 2.0
+      }
+    },
+    {
+      "case_id": "missing_channel_case",
+      "expected_status": "review_required",
+      "required_findings": [
+        "missing channel reported",
+        "partial comparison marked incomplete",
+        "no silent pass"
+      ],
+      "tolerances": {}
+    },
+    {
+      "case_id": "mismatched_frequency_grid_case",
+      "expected_status": "review_required",
+      "required_findings": [
+        "frequency grid mismatch reported",
+        "grid mismatch magnitude reported",
+        "interpolation policy stated"
+      ],
+      "tolerances": {
+        "frequency_grid_delta_hz": 0.0
+      }
+    }
+  ]
+}

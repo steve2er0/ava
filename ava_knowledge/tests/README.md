@@ -17,3 +17,6 @@ This folder contains deterministic validation cases for AVA knowledge artifacts.
 ## How it fits into the AVA pipeline
 
 `tests/` closes the loop between knowledge authoring and reliable execution. Every important rule or skill should have at least one deterministic case that proves intended behavior.
+
+Approved engineering skills require the stricter gate in `../../ava_core/validation/`:
+golden cases, expected outputs, regression procedure, and approval record.
