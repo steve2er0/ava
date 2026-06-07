@@ -9006,6 +9006,8 @@ class HermesCLI:
             self._handle_busy_command(cmd_original)
         elif canonical == "llm-exposure":
             self._handle_llm_exposure_command(cmd_original)
+        elif canonical == "sensitive-model":
+            self._handle_sensitive_model_command(cmd_original)
         else:
             # Check for user-defined quick commands (bypass agent loop, no LLM call)
             base_cmd = cmd_lower.split()[0]
@@ -10204,6 +10206,168 @@ class HermesCLI:
             _cprint(f"  {_DIM}Raw tool results will stay local unless you approve a protected-output read.{_RST}")
         else:
             _cprint(f"  {_DIM}Tool results will be sent to the active model normally.{_RST}")
+
+    def _handle_sensitive_model_command(self, cmd: str):
+        """Handle /sensitive-model — pin the approved model for Sensitive data reads."""
+        import shlex
+
+        def _load_model_config() -> dict:
+            try:
+                from hermes_cli.config import load_config
+
+                loaded = load_config()
+                return loaded if isinstance(loaded, dict) else {}
+            except Exception:
+                return {}
+
+        def _primary_display(cfg: dict) -> str:
+            model_cfg = cfg.get("model", {}) if isinstance(cfg, dict) else {}
+            cfg_provider = ""
+            cfg_model = ""
+            if isinstance(model_cfg, dict):
+                cfg_provider = str(model_cfg.get("provider") or "").strip()
+                cfg_model = str(
+                    model_cfg.get("default") or model_cfg.get("model") or ""
+                ).strip()
+            elif isinstance(model_cfg, str):
+                cfg_model = model_cfg.strip()
+            provider = str(
+                getattr(self, "provider", "") or cfg_provider or "unknown"
+            ).strip()
+            model = str(getattr(self, "model", "") or cfg_model or "unknown").strip()
+            return f"{provider} · {model}" if provider and provider != "unknown" else model
+
+        def _sensitive_cfg(cfg: dict) -> dict:
+            aux = cfg.get("auxiliary", {}) if isinstance(cfg, dict) else {}
+            if not isinstance(aux, dict):
+                return {}
+            task_cfg = aux.get("sensitive_data", {})
+            return task_cfg if isinstance(task_cfg, dict) else {}
+
+        def _sensitive_display(task_cfg: dict) -> str:
+            provider = str(task_cfg.get("provider") or "auto").strip().lower() or "auto"
+            model = str(task_cfg.get("model") or "").strip()
+            base_url = str(task_cfg.get("base_url") or "").strip().rstrip("/")
+            if provider in {"", "auto", "main"}:
+                return "not configured"
+            if base_url:
+                short = base_url.replace("https://", "").replace("http://", "")
+                return f"{provider} ({short})" + (f" · {model}" if model else "")
+            return f"{provider} · {model}" if model else provider
+
+        def _print_status() -> None:
+            cfg = _load_model_config()
+            sensitive = _sensitive_cfg(cfg)
+            sensitive_state = _sensitive_display(sensitive)
+            primary_display = _escape(_primary_display(cfg))
+            sensitive_display = _escape(sensitive_state)
+            _cprint(f"  {_ACCENT}Primary model: {primary_display}{_RST}")
+            _cprint(f"  {_ACCENT}Sensitive model: {sensitive_display}{_RST}")
+            if sensitive_state == "not configured":
+                _cprint(
+                    f"  {_DIM}Sensitive reads fail closed until an approved model is configured.{_RST}"
+                )
+            else:
+                _cprint(
+                    f"  {_DIM}Sensitive reads use this model and never fall back to the primary model.{_RST}"
+                )
+            _cprint(
+                f"  {_DIM}Usage: /sensitive-model [status|reset|<provider> <model>|custom <model> <base-url>]{_RST}"
+            )
+            _cprint(
+                f"  {_DIM}Primary model: use /model <model> --provider <provider> --global{_RST}"
+            )
+
+        def _save_sensitive(provider: str, model: str = "", base_url: str = "") -> bool:
+            writes = [
+                save_config_value("auxiliary.sensitive_data.provider", provider),
+                save_config_value("auxiliary.sensitive_data.model", model or ""),
+                save_config_value("auxiliary.sensitive_data.base_url", base_url or ""),
+                save_config_value("auxiliary.sensitive_data.api_key", ""),
+                save_config_value("auxiliary.sensitive_data.api_mode", ""),
+            ]
+            return all(writes)
+
+        parts = cmd.strip().split(maxsplit=1)
+        raw_args = parts[1].strip() if len(parts) > 1 else ""
+        if not raw_args:
+            _print_status()
+            return
+
+        try:
+            args = shlex.split(raw_args)
+        except ValueError as exc:
+            _cprint(f"  {_DIM}(._.) Could not parse arguments: {_escape(str(exc))}{_RST}")
+            _cprint(
+                f"  {_DIM}Usage: /sensitive-model [status|reset|<provider> <model>|custom <model> <base-url>]{_RST}"
+            )
+            return
+
+        if not args or args[0].lower() == "status":
+            _print_status()
+            return
+
+        action = args[0].lower()
+        if action in {"reset", "clear", "off"}:
+            if _save_sensitive("auto"):
+                _cprint(
+                    f"  {_ACCENT}✓ Sensitive model reset; sensitive reads will fail closed.{_RST}"
+                )
+            else:
+                _cprint(f"  {_DIM}Could not save sensitive model reset to config.yaml.{_RST}")
+            return
+
+        provider_aliases = {
+            "openai": "openai-api",
+            "openai_api": "openai-api",
+            "codex": "openai-codex",
+            "openai_codex": "openai-codex",
+            "local": "custom",
+        }
+
+        if action in {"auto", "main"}:
+            _cprint(
+                f"  {_DIM}Sensitive data cannot use '{action}'. "
+                "Use /sensitive-model reset to leave it unconfigured, "
+                f"or pin an approved provider/model.{_RST}"
+            )
+            return
+
+        if action in {"custom", "local"}:
+            if len(args) < 3:
+                _cprint(f"  {_DIM}Usage: /sensitive-model custom <model> <base-url>{_RST}")
+                return
+            model = args[1].strip()
+            base_url = args[2].strip().rstrip("/")
+            if not model or not base_url:
+                _cprint(f"  {_DIM}Usage: /sensitive-model custom <model> <base-url>{_RST}")
+                return
+            if not base_url.startswith(("http://", "https://")):
+                _cprint(
+                    f"  {_DIM}Custom sensitive model base URL must start with http:// or https://{_RST}"
+                )
+                return
+            if _save_sensitive("custom", model, base_url):
+                _cprint(f"  {_ACCENT}✓ Sensitive model set to custom · {_escape(model)}{_RST}")
+                _cprint(f"  {_DIM}Endpoint: {_escape(base_url)}{_RST}")
+                _cprint(f"  {_DIM}Sensitive reads will not fall back to the primary model.{_RST}")
+            else:
+                _cprint(f"  {_DIM}Could not save sensitive model to config.yaml.{_RST}")
+            return
+
+        if len(args) < 2:
+            _cprint(f"  {_DIM}Usage: /sensitive-model <provider> <model>{_RST}")
+            return
+        provider = provider_aliases.get(action, action)
+        model = args[1].strip()
+        if not model:
+            _cprint(f"  {_DIM}Usage: /sensitive-model <provider> <model>{_RST}")
+            return
+        if _save_sensitive(provider, model):
+            _cprint(f"  {_ACCENT}✓ Sensitive model set to {_escape(provider)} · {_escape(model)}{_RST}")
+            _cprint(f"  {_DIM}Sensitive reads will not fall back to the primary model.{_RST}")
+        else:
+            _cprint(f"  {_DIM}Could not save sensitive model to config.yaml.{_RST}")
 
     def _handle_fast_command(self, cmd: str):
         """Handle /fast — toggle fast mode (OpenAI Priority Processing / Anthropic Fast Mode)."""

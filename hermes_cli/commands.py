@@ -163,6 +163,10 @@ COMMAND_REGISTRY: list[CommandDef] = [
                "Configuration", cli_only=True, aliases=("llm_exposure",),
                args_hint="[full|minimal|status]",
                subcommands=("full", "minimal", "status")),
+    CommandDef("sensitive-model", "Configure the approved sensitive-data model",
+               "Configuration", cli_only=True, aliases=("sensitive_model",),
+               args_hint="[status|reset|<provider> <model>|custom <model> <base-url>]",
+               subcommands=("status", "reset", "custom", "openai-api", "openai")),
 
     # Tools & Skills
     CommandDef("tools", "Manage tools: /tools [list|disable|enable] [name...]", "Tools & Skills",

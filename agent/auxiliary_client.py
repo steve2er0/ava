@@ -157,7 +157,7 @@ _PROVIDER_ALIASES = {
     "tencentmaas": "tencent-tokenhub",
 }
 
-_OPENAI_ONLY_AUX_PROVIDERS = frozenset({"auto", "openai-codex", "openai-api"})
+_OPENAI_ONLY_AUX_PROVIDERS = frozenset({"auto", "custom", "openai-codex", "openai-api"})
 _SENSITIVE_DATA_TASK = "sensitive_data"
 
 
@@ -3211,8 +3211,8 @@ def resolve_provider_client(
     transparently.
 
     Args:
-        provider: Provider identifier. One of "auto", "openai-codex"
-            (or "codex"), or "openai-api".
+        provider: Provider identifier. One of "auto", "custom",
+            "openai-codex" (or "codex"), or "openai-api".
         model: Model slug override.  If None, uses the provider's default
                auxiliary model.
         async_mode: If True, return an async-compatible client.
@@ -3241,8 +3241,9 @@ def resolve_provider_client(
     provider = _normalize_aux_provider(provider)
     if provider not in _OPENAI_ONLY_AUX_PROVIDERS:
         logger.warning(
-            "Auxiliary provider %r is disabled; AVA supports OpenAI/Codex "
-            "auxiliary calls only.",
+            "Auxiliary provider %r is disabled; AVA supports only primary "
+            "auto-routing, custom OpenAI-compatible endpoints, OpenAI API, "
+            "and Codex auxiliary calls.",
             original_provider or provider,
         )
         return None, None
@@ -4513,10 +4514,10 @@ def _resolve_task_provider_model(
       3. "auto" (full auto-detection chain)
 
     Returns (provider, model, base_url, api_key, api_mode) where model may
-    be None (use provider default). A direct base_url is allowed only for
-    openai-api; every other direct endpoint is returned as "custom" and then
-    rejected by the OpenAI-only router. api_mode is one of "chat_completions",
-    "codex_responses", or None (auto-detect).
+    be None (use provider default). Direct OpenAI API endpoints stay on
+    openai-api; every other direct endpoint is returned as "custom" and sent
+    through the custom OpenAI-compatible router. api_mode is one of
+    "chat_completions", "codex_responses", or None (auto-detect).
     """
     cfg_provider = None
     cfg_model = None

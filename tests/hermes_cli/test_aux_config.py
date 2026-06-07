@@ -97,6 +97,17 @@ def test_format_aux_current_handles_non_dict():
     assert _format_aux_current("string") == "auto"
 
 
+def test_format_aux_current_marks_sensitive_auto_as_not_configured():
+    assert (
+        _format_aux_current({"provider": "auto", "model": ""}, "sensitive_data")
+        == "not configured"
+    )
+    assert (
+        _format_aux_current({"provider": "main", "model": "gpt-4o"}, "sensitive_data")
+        == "not configured"
+    )
+
+
 # ── _save_aux_choice ────────────────────────────────────────────────────────
 
 

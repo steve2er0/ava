@@ -185,6 +185,25 @@ class TestSensitiveDataAuxiliaryRouting:
 
         main_fallback.assert_not_called()
 
+    def test_custom_sensitive_endpoint_uses_no_key_placeholder(self):
+        mock_openai = MagicMock()
+        mock_openai.return_value = MagicMock(name="custom-sensitive-client")
+
+        with patch("agent.auxiliary_client.OpenAI", mock_openai):
+            client, model = resolve_provider_client(
+                provider="custom",
+                model="approved-sensitive",
+                explicit_base_url="http://localhost:11434/v1",
+                explicit_api_key=None,
+            )
+
+        assert client is not None
+        assert model == "approved-sensitive"
+        mock_openai.assert_called_once()
+        call_kwargs = mock_openai.call_args.kwargs
+        assert call_kwargs["api_key"] == "no-key-required"
+        assert call_kwargs["base_url"] == "http://localhost:11434/v1"
+
 
 class TestReadCodexAccessToken:
     def test_valid_auth_store(self, tmp_path, monkeypatch):

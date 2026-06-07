@@ -2639,13 +2639,15 @@ def _all_aux_tasks() -> list[tuple[str, str, str]]:
     return tasks
 
 
-def _format_aux_current(task_cfg: dict) -> str:
+def _format_aux_current(task_cfg: dict, task: str = "") -> str:
     """Render the current aux config for display in the task menu."""
     if not isinstance(task_cfg, dict):
-        return "auto"
+        return "not configured" if task == "sensitive_data" else "auto"
     base_url = str(task_cfg.get("base_url") or "").strip()
     provider = str(task_cfg.get("provider") or "auto").strip() or "auto"
     model = str(task_cfg.get("model") or "").strip()
+    if task == "sensitive_data" and provider in {"auto", "main", ""}:
+        return "not configured"
     if base_url:
         short = base_url.replace("https://", "").replace("http://", "").rstrip("/")
         return f"custom ({short})" + (f" · {model}" if model else "")
@@ -2737,11 +2739,11 @@ def _aux_config_menu() -> None:
         print()
         print("  Auxiliary models — side-task routing")
         print()
-        print("  Side tasks (vision, compression, web extraction, etc.) default")
-        print('  to your main chat model.  "auto" means "use my main model" —')
-        print("  Hermes only falls back to a lightweight backend (OpenRouter,")
-        print("  Nous Portal) if the main model is unavailable.  Override a")
-        print("  task below if you want it pinned to a specific provider/model.")
+        print("  Most side tasks (vision, compression, web extraction, etc.)")
+        print('  can use "auto", which means "use my main chat model".')
+        print("  Sensitive data is different: it must be pinned to an approved")
+        print("  provider/model or custom endpoint, and it never falls back to")
+        print("  the primary model.")
         print()
 
         # Build the task menu with current settings inline
@@ -2753,7 +2755,7 @@ def _aux_config_menu() -> None:
             task_cfg = (
                 aux.get(task_key, {}) if isinstance(aux.get(task_key), dict) else {}
             )
-            current = _format_aux_current(task_cfg)
+            current = _format_aux_current(task_cfg, task_key)
             label = (
                 f"{name.ljust(name_col)}{('(' + desc + ')').ljust(desc_col)}{current}"
             )
@@ -2814,11 +2816,15 @@ def _aux_select_for_task(task: str) -> None:
         providers = []
 
     entries: list[tuple[str, str, list[str]]] = []  # (slug, label, models)
-    # "auto" always first
+    # "auto" always first for regular tasks. Sensitive data treats the same
+    # saved value as an explicit fail-closed state rather than a usable route.
     auto_marker = (
         "  ← current" if current_provider == "auto" and not current_base_url else ""
     )
-    entries.append(("__auto__", f"auto (recommended){auto_marker}", []))
+    if task == "sensitive_data":
+        entries.append(("__auto__", f"not configured (fail closed){auto_marker}", []))
+    else:
+        entries.append(("__auto__", f"auto (recommended){auto_marker}", []))
 
     for p in providers:
         slug = p.get("slug", "")
@@ -2837,7 +2843,7 @@ def _aux_select_for_task(task: str) -> None:
     entries.append(("__back__", "Back", []))
 
     print()
-    print(f"  Configure {display_name} — current: {_format_aux_current(task_cfg)}")
+    print(f"  Configure {display_name} — current: {_format_aux_current(task_cfg, task)}")
     print()
 
     idx = _prompt_provider_choice([label for _, label, _ in entries], default=0)
@@ -2850,7 +2856,10 @@ def _aux_select_for_task(task: str) -> None:
 
     if slug == "__auto__":
         _save_aux_choice(task, provider="auto", model="", base_url="", api_key="")
-        print(f"{display_name}: reset to auto.")
+        if task == "sensitive_data":
+            print(f"{display_name}: not configured; reads will fail closed.")
+        else:
+            print(f"{display_name}: reset to auto.")
         return
 
     if slug == "__custom__":
