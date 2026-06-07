@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AVA FEM Viewer</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./assets/three.module.min.js",
+          "three/addons/": "./assets/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <h1 id="viewer-title">AVA FEM Viewer</h1>
+          <p id="viewer-subtitle">Loading model</p>
+        </div>
+        <div class="stats" id="stats"></div>
+      </header>
+      <main class="viewer-shell">
+        <canvas id="viewer"></canvas>
+        <aside class="panel">
+          <label class="field">
+            <span>Mode</span>
+            <select id="mode-select" disabled>
+              <option value="">Undeformed</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Scale</span>
+            <input id="scale" type="range" min="0" max="100" value="18" />
+          </label>
+          <button id="animate" type="button" disabled>Animate</button>
+          <div class="readout" id="readout"></div>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="./fem_viewer.js"></script>
+  </body>
+</html>

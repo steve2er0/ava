@@ -1,0 +1,49 @@
+{
+  "skill": "op2_mode_shape_viewer_build",
+  "version": "v1",
+  "description": "Golden cases for building local HTML FEM mode-shape viewers from BDF geometry plus OP2 modal results or OP2-derived modal exports.",
+  "cases": [
+    {
+      "id": "synthetic_modal_cache_case",
+      "title": "Synthetic modal cache case",
+      "purpose": "Verify that OP2-derived modal JSON creates a manifest, per-mode shape files, and a local viewer URL.",
+      "inputs": {
+        "bdf": "synthetic/simple_plate.bdf",
+        "op2": "synthetic/two_mode_plate_modal_export.json"
+      },
+      "checks": [
+        "mode_count equals the synthetic export mode count",
+        "frequency range matches the synthetic modes",
+        "manifest and per-mode JSON files exist",
+        "viewer_config.json points to data/modes/manifest.json"
+      ]
+    },
+    {
+      "id": "mismatched_mode_node_case",
+      "title": "Mismatched mode node case",
+      "purpose": "Verify that the viewer build tolerates modal nodes not present in the BDF without failing workspace generation.",
+      "inputs": {
+        "bdf": "synthetic/simple_plate.bdf",
+        "op2": "synthetic/mismatched_node_modal_export.json"
+      },
+      "checks": [
+        "manifest still records all modal nodes",
+        "viewer is generated",
+        "summary exposes counts and artifact paths only"
+      ]
+    },
+    {
+      "id": "missing_op2_case",
+      "title": "Missing OP2 path",
+      "purpose": "Verify controlled failure when the requested OP2/modal export file does not exist.",
+      "inputs": {
+        "bdf": "synthetic/simple_plate.bdf",
+        "op2": "missing/no_results.op2"
+      },
+      "checks": [
+        "tool fails without creating a misleading modal manifest",
+        "error identifies the missing path"
+      ]
+    }
+  ]
+}

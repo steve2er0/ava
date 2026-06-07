@@ -10,6 +10,7 @@ import pytest
 
 from ava_runtime.engineering_tools import list_approved_tools, run_engineering_tool
 from ava_runtime.parsers.hdf5_summary import HDF5_SIGNATURE
+from ava_runtime.visualization.fem_viewer import shutdown_viewer_servers
 
 
 EXPECTED_TOOLS = {
@@ -17,6 +18,8 @@ EXPECTED_TOOLS = {
     "nastran_mass_summary",
     "nastran_geometry_summary",
     "op2_modal_summary",
+    "bdf_3d_viewer_build",
+    "op2_mode_shape_viewer_build",
     "modal_frf_compute",
     "sol103_deck_build",
     "sol111_deck_build",
@@ -29,6 +32,12 @@ EXPECTED_TOOLS = {
     "fds_compute",
     "hdf5_channel_summary",
 }
+
+
+@pytest.fixture(autouse=True)
+def _stop_fem_viewer_servers():
+    yield
+    shutdown_viewer_servers()
 
 
 def _write_demo_bdf(path: Path) -> Path:
@@ -58,11 +67,50 @@ def _write_demo_bdf(path: Path) -> Path:
     return path
 
 
+def _write_mode_shape_export(path: Path, *, extra_node: bool = False) -> Path:
+    node_ids = [1, 2, 3, 4]
+    translations = [
+        [0.0, 0.0, 0.0],
+        [0.1, 0.0, 0.0],
+        [0.1, 0.1, 0.0],
+        [0.0, 0.1, 0.0],
+    ]
+    if extra_node:
+        node_ids.append(999)
+        translations.append([0.0, 0.0, 0.2])
+    path.write_text(
+        json.dumps(
+            {
+                "modes": [
+                    {
+                        "mode_id": "s1_m1",
+                        "case_key": "1",
+                        "mode_number": 1,
+                        "frequency_hz": 12.5,
+                        "node_ids": node_ids,
+                        "translations": translations,
+                    },
+                    {
+                        "mode_id": "s1_m2",
+                        "case_key": "1",
+                        "mode_number": 2,
+                        "frequency_hz": 28.0,
+                        "node_ids": node_ids,
+                        "translations": [[0.0, value[1], value[0]] for value in translations],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_catalog_contains_exact_build_plan_tools():
     names = {item["name"] for item in list_approved_tools()}
 
     assert names == EXPECTED_TOOLS
-    assert len(names) == 15
+    assert len(names) == 17
 
 
 def test_bdf_geometry_check_and_mass_tools(tmp_path):
@@ -93,6 +141,86 @@ def test_bdf_geometry_check_and_mass_tools(tmp_path):
     assert math.isclose(mass["summary"]["estimated_structural_mass"], 1.0)
     assert math.isclose(mass["summary"]["concentrated_mass"], 5.0)
     assert math.isclose(mass["summary"]["total_mass"], 6.0)
+
+
+def test_bdf_and_op2_html_viewer_tools(tmp_path):
+    bdf = _write_demo_bdf(tmp_path / "demo.bdf")
+
+    bdf_viewer = run_engineering_tool(
+        "bdf_3d_viewer_build",
+        {"bdf": str(bdf), "out": str(tmp_path / "bdf_viewer"), "title": "Demo BDF"},
+    )
+    assert bdf_viewer["status"] == "ok"
+    assert bdf_viewer["llm_exposure"] == "summary_only"
+    assert bdf_viewer["summary"]["viewer_url"].startswith("http://127.0.0.1:")
+    assert bdf_viewer["summary"]["node_count"] == 6
+    assert bdf_viewer["summary"]["element_count"] == 1
+    assert all(Path(path).exists() for path in bdf_viewer["artifacts"])
+    assert "GRID,1" not in json.dumps(bdf_viewer["summary"])
+
+    geometry_payload = json.loads(Path(bdf_viewer["summary"]["geometry_json"]).read_text(encoding="utf-8"))
+    assert geometry_payload["schema"] == "ava_fem_geometry_v1"
+    assert geometry_payload["stats"]["duplicate_node_group_count"] == 1
+    assert geometry_payload["stats"]["free_edge_count"] == 4
+    assert geometry_payload["elements"][0]["node_ids"] == [1, 2, 3, 4]
+    viewer_config = json.loads(Path(bdf_viewer["summary"]["viewer_config"]).read_text(encoding="utf-8"))
+    assert viewer_config["geometry_url"] == "data/geometry.json"
+
+    modal_export = _write_mode_shape_export(tmp_path / "modes.json")
+    op2_viewer = run_engineering_tool(
+        "op2_mode_shape_viewer_build",
+        {
+            "bdf": str(bdf),
+            "op2": str(modal_export),
+            "out": str(tmp_path / "op2_viewer"),
+            "title": "Demo Modes",
+        },
+    )
+    assert op2_viewer["status"] == "ok"
+    assert op2_viewer["summary"]["viewer_url"].startswith("http://127.0.0.1:")
+    assert op2_viewer["summary"]["mode_count"] == 2
+    assert op2_viewer["summary"]["frequency_min_hz"] == 12.5
+    assert op2_viewer["summary"]["frequency_max_hz"] == 28.0
+    assert "translations" not in json.dumps(op2_viewer["summary"])
+
+    manifest_path = Path(op2_viewer["summary"]["op2_manifest_json"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema"] == "ava_fem_modes_v1"
+    assert manifest["modes"][0]["shape_url"] == "s1_m1.json"
+    assert (manifest_path.parent / "s1_m1.json").exists()
+    assert all(Path(path).exists() for path in op2_viewer["artifacts"])
+
+    mismatched_export = _write_mode_shape_export(tmp_path / "mismatched_modes.json", extra_node=True)
+    mismatched = run_engineering_tool(
+        "op2_mode_shape_viewer_build",
+        {
+            "bdf": str(bdf),
+            "op2": str(mismatched_export),
+            "out": str(tmp_path / "mismatched_viewer"),
+        },
+    )
+    mismatched_manifest = json.loads(Path(mismatched["summary"]["op2_manifest_json"]).read_text(encoding="utf-8"))
+    assert mismatched_manifest["modes"][0]["node_count"] == 5
+
+
+def test_fem_viewer_tools_fail_for_missing_inputs(tmp_path):
+    missing_bdf = tmp_path / "missing.bdf"
+    with pytest.raises(FileNotFoundError):
+        run_engineering_tool(
+            "bdf_3d_viewer_build",
+            {"bdf": str(missing_bdf), "out": str(tmp_path / "missing_bdf_viewer")},
+        )
+
+    bdf = _write_demo_bdf(tmp_path / "demo.bdf")
+    with pytest.raises(FileNotFoundError):
+        run_engineering_tool(
+            "op2_mode_shape_viewer_build",
+            {
+                "bdf": str(bdf),
+                "op2": str(tmp_path / "missing.op2"),
+                "out": str(tmp_path / "missing_op2_viewer"),
+            },
+        )
 
 
 def test_op2_modal_summary_and_modal_frf_tool(tmp_path):

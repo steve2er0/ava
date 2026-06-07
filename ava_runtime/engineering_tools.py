@@ -25,6 +25,7 @@ from ava_runtime.parsers.pch_parser import pch_summary_dict, parse_pch_records, 
 from ava_runtime.solvers.deck_builder import build_sol103_deck_from_config, build_sol111_deck_from_config, write_deck
 from ava_runtime.solvers.f06_scan import scan_f06
 from ava_runtime.solvers.nastran_runner import NastranRunRequest, NastranRunner
+from ava_runtime.visualization.fem_viewer import build_bdf_3d_viewer, build_op2_mode_shape_viewer
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,24 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
         default_llm_exposure="summary_only",
         inputs=("op2",),
         outputs=("modal_summary.json", "modes.csv"),
+    ),
+    "bdf_3d_viewer_build": ApprovedTool(
+        name="bdf_3d_viewer_build",
+        category="visualization",
+        purpose="Generate and serve a local HTML/Three.js 3D viewer for BDF geometry.",
+        risk_level="read_only",
+        default_llm_exposure="summary_only",
+        inputs=("bdf",),
+        outputs=("index.html", "viewer_config.json", "geometry.json", "viewer_url"),
+    ),
+    "op2_mode_shape_viewer_build": ApprovedTool(
+        name="op2_mode_shape_viewer_build",
+        category="visualization",
+        purpose="Generate and serve a local HTML/Three.js viewer for BDF geometry plus OP2 modal mode shapes.",
+        risk_level="derived_data",
+        default_llm_exposure="summary_only",
+        inputs=("bdf", "op2"),
+        outputs=("index.html", "viewer_config.json", "geometry.json", "manifest.json", "viewer_url"),
     ),
     "modal_frf_compute": ApprovedTool(
         name="modal_frf_compute",
@@ -376,6 +395,36 @@ def _run_op2_modal_summary(params: Mapping[str, Any], tool: ApprovedTool) -> Too
         },
         tuple(str(path) for path in artifacts),
     )
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    return int(value)
+
+
+def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
+    out = _artifact_dir(params, tool.name)
+    payload = build_bdf_3d_viewer(
+        params["bdf"],
+        out,
+        title=str(params["title"]) if params.get("title") else None,
+        port=_optional_int(params.get("port")),
+    )
+    return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, payload["summary"], tuple(payload["artifacts"]))
+
+
+def _run_op2_mode_shape_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
+    out = _artifact_dir(params, tool.name)
+    payload = build_op2_mode_shape_viewer(
+        params["bdf"],
+        params["op2"],
+        out,
+        title=str(params["title"]) if params.get("title") else None,
+        port=_optional_int(params.get("port")),
+        mode_limit=_optional_int(params.get("mode_limit")),
+    )
+    return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, payload["summary"], tuple(payload["artifacts"]))
 
 
 def _modal_terms_from_params(params: Mapping[str, Any]) -> list[ModalTerm]:
@@ -659,6 +708,8 @@ _RUNNERS: dict[str, Callable[[Mapping[str, Any], ApprovedTool], ToolRunResult]] 
     "nastran_mass_summary": _run_nastran_mass_summary,
     "nastran_geometry_summary": _run_nastran_geometry_summary,
     "op2_modal_summary": _run_op2_modal_summary,
+    "bdf_3d_viewer_build": _run_bdf_3d_viewer_build,
+    "op2_mode_shape_viewer_build": _run_op2_mode_shape_viewer_build,
     "modal_frf_compute": _run_modal_frf_compute,
     "sol103_deck_build": _run_sol103_deck_build,
     "sol111_deck_build": _run_sol111_deck_build,

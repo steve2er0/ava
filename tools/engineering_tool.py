@@ -55,6 +55,8 @@ registry.register(
                         "nastran_mass_summary",
                         "nastran_geometry_summary",
                         "op2_modal_summary",
+                        "bdf_3d_viewer_build",
+                        "op2_mode_shape_viewer_build",
                         "modal_frf_compute",
                         "sol103_deck_build",
                         "sol111_deck_build",

@@ -9,6 +9,7 @@ Turn computed response data and structural geometry into lightweight figures tha
 ## What belongs here
 
 - FRF and mode-shape renderers
+- Local HTML/Three.js FEM viewers for BDF geometry and OP2-derived mode shapes
 - Export helpers for SVG, CSV, or other review-ready formats
 - Plot formatting routines that preserve engineering traceability
 

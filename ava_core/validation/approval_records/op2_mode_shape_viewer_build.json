@@ -1,0 +1,24 @@
+{
+  "skill": "op2_mode_shape_viewer_build",
+  "skill_type": "engineering",
+  "status": "approved",
+  "approved_version": "v1",
+  "approval_date": "2026-06-07",
+  "approved_by": "AVA validation gate",
+  "skill_path": "ava_runtime/visualization/fem_viewer.py",
+  "validated_on": [
+    "synthetic_modal_cache_case",
+    "mismatched_mode_node_case",
+    "missing_op2_case"
+  ],
+  "golden_cases": "ava_core/validation/golden_cases/op2_mode_shape_viewer_build.json",
+  "expected_outputs": "ava_core/validation/expected_outputs/op2_mode_shape_viewer_build.json",
+  "regression_tests": "ava_core/validation/regression_tests/op2_mode_shape_viewer_build.md",
+  "approval_basis": [
+    "synthetic OP2-derived modal cache",
+    "mode shape containing nodes not present in the BDF",
+    "missing OP2 or modal export path"
+  ],
+  "llm_exposure_policy": "raw OP2 bytes and mode-shape arrays remain in local artifacts; expose mode counts, frequency range, localhost URL, and artifact paths only",
+  "notes": "Approved for local visualization of binary OP2 files when pyNastran is installed and sanitized OP2-derived JSON modal exports for validation."
+}

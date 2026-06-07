@@ -1,0 +1,46 @@
+{
+  "skill": "bdf_3d_viewer_build",
+  "version": "v1",
+  "description": "Golden cases for building local HTML FEM geometry viewers from BDF inputs.",
+  "cases": [
+    {
+      "id": "synthetic_plate_bdf",
+      "title": "Synthetic plate BDF",
+      "purpose": "Verify that a small CQUAD4 plate produces geometry JSON, static viewer files, and a localhost URL.",
+      "inputs": {
+        "bdf": "synthetic/simple_plate.bdf"
+      },
+      "checks": [
+        "node and element counts match the source deck",
+        "geometry JSON contains nodes and shell element connectivity",
+        "viewer_config.json points to data/geometry.json",
+        "result exposes summary and artifact paths only"
+      ]
+    },
+    {
+      "id": "diagnostic_bdf",
+      "title": "Diagnostic BDF",
+      "purpose": "Verify that duplicate, floating, and free-edge diagnostics remain available in the viewer geometry payload.",
+      "inputs": {
+        "bdf": "synthetic/diagnostic_plate.bdf"
+      },
+      "checks": [
+        "duplicate node group count is reported",
+        "floating node count is reported",
+        "free-edge count is reported"
+      ]
+    },
+    {
+      "id": "missing_bdf_case",
+      "title": "Missing BDF path",
+      "purpose": "Verify controlled failure when the requested BDF file does not exist.",
+      "inputs": {
+        "bdf": "missing/no_model.bdf"
+      },
+      "checks": [
+        "tool fails without creating a misleading viewer",
+        "error identifies the missing path"
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ def test_get_available_skills_returns_approved_engineering_catalog():
     assert "sol111_deck_build" in catalog["nastran"]
     assert "srs_compute" in catalog["signals"]
     assert "hdf5_channel_summary" in catalog["data"]
+    assert catalog["visualization"] == ["bdf_3d_viewer_build", "op2_mode_shape_viewer_build"]
 
 
 def test_get_available_skills_returns_copy():

@@ -1,0 +1,39 @@
+{
+  "skill": "bdf_3d_viewer_build",
+  "version": "v1",
+  "expected_outputs": [
+    {
+      "case_id": "synthetic_plate_bdf",
+      "expected_status": "ok",
+      "required_findings": [
+        "viewer_url starts with http://127.0.0.1:",
+        "geometry_json artifact exists",
+        "index_html artifact exists",
+        "summary contains node and element counts"
+      ],
+      "tolerances": {
+        "node_count": 0,
+        "element_count": 0
+      }
+    },
+    {
+      "case_id": "diagnostic_bdf",
+      "expected_status": "ok",
+      "required_findings": [
+        "duplicate_node_group_count is greater than zero",
+        "floating_node_count is greater than zero",
+        "free_edge_count is greater than zero"
+      ],
+      "tolerances": {}
+    },
+    {
+      "case_id": "missing_bdf_case",
+      "expected_status": "failed",
+      "required_findings": [
+        "missing input path is reported",
+        "no raw BDF content is included in the result"
+      ],
+      "tolerances": {}
+    }
+  ]
+}

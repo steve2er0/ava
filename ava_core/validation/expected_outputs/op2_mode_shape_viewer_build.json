@@ -1,0 +1,39 @@
+{
+  "skill": "op2_mode_shape_viewer_build",
+  "version": "v1",
+  "expected_outputs": [
+    {
+      "case_id": "synthetic_modal_cache_case",
+      "expected_status": "ok",
+      "required_findings": [
+        "viewer_url starts with http://127.0.0.1:",
+        "op2_manifest_json artifact exists",
+        "mode_count equals 2",
+        "frequency_min_hz and frequency_max_hz match the export"
+      ],
+      "tolerances": {
+        "frequency_hz": 0.0,
+        "mode_count": 0
+      }
+    },
+    {
+      "case_id": "mismatched_mode_node_case",
+      "expected_status": "ok",
+      "required_findings": [
+        "modal node count is preserved",
+        "viewer artifacts are generated",
+        "no raw modal arrays are included in the tool summary"
+      ],
+      "tolerances": {}
+    },
+    {
+      "case_id": "missing_op2_case",
+      "expected_status": "failed",
+      "required_findings": [
+        "missing input path is reported",
+        "no raw OP2 content is included in the result"
+      ],
+      "tolerances": {}
+    }
+  ]
+}
