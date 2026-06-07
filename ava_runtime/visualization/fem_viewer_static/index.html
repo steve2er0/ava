@@ -8,6 +8,7 @@
     <script type="importmap">
       {
         "imports": {
+          "gifenc": "./assets/gifenc.esm.js",
           "three": "./assets/three.module.min.js",
           "three/addons/": "./assets/"
         }
@@ -46,6 +47,7 @@
             <input id="scale" type="range" min="0" max="100" value="18" />
           </label>
           <button id="animate" type="button" disabled>Animate</button>
+          <button id="export-gif" type="button" disabled>Export GIF</button>
           <div class="readout" id="readout"></div>
         </aside>
       </main>

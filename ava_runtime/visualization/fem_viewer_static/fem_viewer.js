@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { applyPalette, GIFEncoder, quantize } from "gifenc";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 const canvas = document.querySelector("#viewer");
@@ -8,11 +9,16 @@ const statsEl = document.querySelector("#stats");
 const modeSelect = document.querySelector("#mode-select");
 const scaleInput = document.querySelector("#scale");
 const animateButton = document.querySelector("#animate");
+const exportGifButton = document.querySelector("#export-gif");
 const readout = document.querySelector("#readout");
 const treeEl = document.querySelector("#model-tree");
 const visibleCountEl = document.querySelector("#visible-count");
 
 const DEFAULT_VIEW_DIRECTION = new THREE.Vector3(1.2, -1.5, 0.9).normalize();
+const MODE_PLAYBACK_HZ = 1.2;
+const MODE_GIF_FRAME_COUNT = 20;
+const MODE_GIF_EXPORT_SCALE = 4;
+const MODE_GIF_MAX_DIMENSION = 2048;
 const DEFAULT_DISPLAY_OPTIONS = {
   renderStyle: "shaded",
   colorMode: "property",
@@ -46,10 +52,12 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.62));
 let geometryPayload = null;
 let modesManifest = null;
 let activeMode = null;
+let activeModeSummary = null;
 let modelGroup = null;
 let modelTreeData = null;
 let animating = false;
 let animationStart = 0;
+let exportingGif = false;
 
 const expandedTreeSections = new Set(["render", "type", "property", "material"]);
 let displayOptions = createDisplayOptions();
@@ -79,6 +87,12 @@ async function main() {
   if (config.modes_url) {
     modesManifest = await loadJson(config.modes_url);
     setupModes(modesManifest);
+    if (config.initial_mode_id) {
+      await setActiveMode(config.initial_mode_id);
+      if (config.auto_animate && activeMode) {
+        setAnimating(true);
+      }
+    }
   }
   rebuildModel();
   fitCamera({ resetOrientation: true });
@@ -110,10 +124,10 @@ function setStats(stats) {
 
 function setupModes(manifest) {
   if (!manifest.modes || manifest.modes.length === 0) {
+    updateModeControls();
     return;
   }
   modeSelect.disabled = false;
-  animateButton.disabled = false;
   for (const mode of manifest.modes) {
     const label = mode.frequency_hz == null
       ? `Mode ${mode.mode_number}`
@@ -123,18 +137,45 @@ function setupModes(manifest) {
     option.textContent = label;
     modeSelect.appendChild(option);
   }
+  updateModeControls();
+}
+
+function setAnimating(enabled) {
+  animating = Boolean(enabled && activeMode);
+  animateButton.textContent = animating ? "Stop" : "Animate";
+  animationStart = performance.now();
+  updateModeControls();
+}
+
+function updateModeControls() {
+  const hasMode = Boolean(activeMode);
+  animateButton.disabled = !hasMode;
+  exportGifButton.disabled = !hasMode || exportingGif;
+  exportGifButton.textContent = exportingGif ? "Exporting..." : "Export GIF";
 }
 
 modeSelect.addEventListener("change", async () => {
-  const modeId = modeSelect.value;
+  await setActiveMode(modeSelect.value);
+});
+
+async function setActiveMode(modeId) {
   activeMode = null;
+  activeModeSummary = null;
   if (modeId && modesManifest) {
     const mode = modesManifest.modes.find((item) => item.mode_id === modeId);
-    activeMode = await loadJson(`data/modes/${mode.shape_url}`);
+    if (mode) {
+      activeModeSummary = mode;
+      activeMode = await loadJson(`data/modes/${mode.shape_url}`);
+      modeSelect.value = mode.mode_id;
+    }
+  } else {
+    modeSelect.value = "";
+    setAnimating(false);
   }
   rebuildModel();
   updateReadout();
-});
+  updateModeControls();
+}
 
 scaleInput.addEventListener("input", () => {
   rebuildModel();
@@ -142,9 +183,11 @@ scaleInput.addEventListener("input", () => {
 });
 
 animateButton.addEventListener("click", () => {
-  animating = !animating;
-  animateButton.textContent = animating ? "Stop" : "Animate";
-  animationStart = performance.now();
+  setAnimating(!animating);
+});
+
+exportGifButton.addEventListener("click", async () => {
+  await exportModeGif();
 });
 
 treeEl.addEventListener("click", (event) => {
@@ -501,7 +544,7 @@ function currentPhase() {
   if (!animating || !activeMode) {
     return 1;
   }
-  return Math.sin((performance.now() - animationStart) / 260);
+  return Math.sin(((performance.now() - animationStart) / 1000) * Math.PI * 2 * MODE_PLAYBACK_HZ);
 }
 
 function modeMap(scale, phase) {
@@ -537,7 +580,7 @@ function nodePosition(nodeById, nodeId, displacements) {
   return displacement ? base.clone().add(displacement) : base.clone();
 }
 
-function rebuildModel() {
+function rebuildModel({ phase = currentPhase() } = {}) {
   if (!geometryPayload) {
     return;
   }
@@ -551,7 +594,7 @@ function rebuildModel() {
   const nodeById = new Map(
     geometryPayload.nodes.map((node) => [Number(node.id), new THREE.Vector3(...node.xyz)]),
   );
-  const displacements = modeMap(currentScale(), currentPhase());
+  const displacements = modeMap(currentScale(), phase);
   const visibleElements = [];
   const visibleMasses = [];
   const visibleNodeIds = new Set();
@@ -852,11 +895,168 @@ function fitCamera({ resetOrientation = false } = {}) {
 
 function updateReadout() {
   if (!activeMode) {
-    readout.textContent = "";
+    readout.textContent = modesManifest ? "Select a mode to animate or export." : "";
     return;
   }
   const freq = activeMode.frequency_hz == null ? "frequency unavailable" : `${Number(activeMode.frequency_hz).toFixed(4)} Hz`;
   readout.textContent = `${activeMode.mode_id}: ${freq}, ${activeMode.node_ids.length} modal nodes`;
+}
+
+async function exportModeGif() {
+  if (!activeMode || !activeModeSummary || exportingGif) {
+    return;
+  }
+  exportingGif = true;
+  updateModeControls();
+  await waitForNextFrame();
+
+  try {
+    const capture = captureModeAnimationFrames();
+    const gif = GIFEncoder();
+    for (let frameIndex = 0; frameIndex < capture.frames.length; frameIndex += 1) {
+      const rgba = capture.frames[frameIndex];
+      const palette = buildGifPalette(rgba);
+      const indexed = applyPalette(rgba, palette, "rgba4444");
+      gif.writeFrame(indexed, capture.width, capture.height, {
+        palette,
+        transparent: true,
+        transparentIndex: 0,
+        delay: capture.frameDelayMs,
+        repeat: frameIndex === 0 ? 0 : undefined,
+        dispose: 2,
+      });
+    }
+    gif.finish();
+    const bytes = Uint8Array.from(gif.bytes());
+    const blob = new Blob([bytes], { type: "image/gif" });
+    downloadBlob(blob, buildModeGifFilename(modesManifest.source.filename, activeModeSummary.mode_number));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected animated GIF export failure";
+    readout.textContent = message;
+    console.error(error);
+  } finally {
+    exportingGif = false;
+    updateModeControls();
+  }
+}
+
+function captureModeAnimationFrames() {
+  if (!activeMode) {
+    throw new Error("Select a mode before exporting an animated GIF.");
+  }
+  const { width, height } = modeGifExportSize();
+  const exportRenderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    premultipliedAlpha: false,
+  });
+  exportRenderer.setPixelRatio(1);
+  exportRenderer.setClearColor(0x000000, 0);
+  exportRenderer.setSize(width, height, false);
+
+  const exportTarget = new THREE.WebGLRenderTarget(width, height);
+  const exportCamera = camera.clone();
+  exportCamera.aspect = width / height;
+  exportCamera.updateProjectionMatrix();
+  const frameDelayMs = Math.max(20, Math.round((1000 / MODE_PLAYBACK_HZ) / MODE_GIF_FRAME_COUNT));
+  const frames = [];
+  const previousAnimating = animating;
+
+  try {
+    animating = false;
+    for (let frameIndex = 0; frameIndex < MODE_GIF_FRAME_COUNT; frameIndex += 1) {
+      const phase = Math.sin((frameIndex / MODE_GIF_FRAME_COUNT) * Math.PI * 2);
+      rebuildModel({ phase });
+
+      exportRenderer.setRenderTarget(exportTarget);
+      exportRenderer.clear();
+      exportRenderer.render(scene, exportCamera);
+
+      const pixels = new Uint8Array(width * height * 4);
+      exportRenderer.readRenderTargetPixels(exportTarget, 0, 0, width, height, pixels);
+      frames.push(flipRgbaRows(pixels, width, height));
+    }
+  } finally {
+    animating = previousAnimating;
+    rebuildModel();
+    exportRenderer.setRenderTarget(null);
+    exportTarget.dispose();
+    exportRenderer.dispose();
+    exportRenderer.forceContextLoss();
+  }
+
+  return { width, height, frameDelayMs, frames };
+}
+
+function modeGifExportSize() {
+  const sourceWidth = Math.max(canvas.clientWidth * MODE_GIF_EXPORT_SCALE, 1);
+  const sourceHeight = Math.max(canvas.clientHeight * MODE_GIF_EXPORT_SCALE, 1);
+  const aspectRatio = sourceWidth / sourceHeight;
+  if (sourceWidth >= sourceHeight) {
+    const width = Math.min(sourceWidth, MODE_GIF_MAX_DIMENSION);
+    return {
+      width: Math.max(Math.round(width), 1),
+      height: Math.max(Math.round(width / aspectRatio), 1),
+    };
+  }
+  const height = Math.min(sourceHeight, MODE_GIF_MAX_DIMENSION);
+  return {
+    width: Math.max(Math.round(height * aspectRatio), 1),
+    height: Math.max(Math.round(height), 1),
+  };
+}
+
+function buildGifPalette(rgba) {
+  const transparentColor = [0, 0, 0, 0];
+  const quantizedPalette = quantize(rgba, 255, {
+    format: "rgba4444",
+    oneBitAlpha: 0,
+    clearAlpha: false,
+  });
+  const opaquePalette = quantizedPalette
+    .filter((color) => color.length < 4 || color[3] !== 0)
+    .slice(0, 255);
+  return [transparentColor, ...opaquePalette];
+}
+
+function flipRgbaRows(source, width, height) {
+  const flipped = new Uint8Array(source.length);
+  const rowLength = width * 4;
+  for (let rowIndex = 0; rowIndex < height; rowIndex += 1) {
+    const sourceOffset = rowIndex * rowLength;
+    const destinationOffset = (height - rowIndex - 1) * rowLength;
+    flipped.set(source.subarray(sourceOffset, sourceOffset + rowLength), destinationOffset);
+  }
+  return flipped;
+}
+
+function downloadBlob(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function waitForNextFrame() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
+function buildModeGifFilename(sourceFilename, modeNumber) {
+  const baseName = sourceFilename.replace(/\.[^.]+$/, "");
+  const safeBaseName = baseName
+    .trim()
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    || "mode-shape";
+  return `${safeBaseName}-mode-${modeNumber}.gif`;
 }
 
 function resize() {

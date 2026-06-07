@@ -174,8 +174,13 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     viewer_config = json.loads(Path(bdf_viewer["summary"]["viewer_config"]).read_text(encoding="utf-8"))
     assert viewer_config["geometry_url"] == "data/geometry.json"
     viewer_html = Path(bdf_viewer["summary"]["index_html"]).read_text(encoding="utf-8")
-    viewer_js = (Path(bdf_viewer["summary"]["index_html"]).parent / "fem_viewer.js").read_text(encoding="utf-8")
+    viewer_dir = Path(bdf_viewer["summary"]["index_html"]).parent
+    viewer_js = (viewer_dir / "fem_viewer.js").read_text(encoding="utf-8")
     assert 'id="model-tree"' in viewer_html
+    assert 'id="export-gif"' in viewer_html
+    assert '"gifenc": "./assets/gifenc.esm.js"' in viewer_html
+    assert (viewer_dir / "assets" / "gifenc.esm.js").exists()
+    assert (viewer_dir / "assets" / "GIFENC_LICENSE.md").exists()
     assert 'data-tree-expand="${escapeAttr(section)}"' in viewer_js
     assert 'data-tree-section="${escapeAttr(section)}"' in viewer_js
     assert 'data-tree-select="render-style"' in viewer_js
@@ -183,6 +188,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     assert 'data-tree-toggle="${key}"' in viewer_js
     assert 'data-tree-command="fit-model"' in viewer_js
     assert "showMassElements" in viewer_js
+    assert "exportModeGif" in viewer_js
 
     modal_export = _write_mode_shape_export(tmp_path / "modes.json")
     op2_viewer = run_engineering_tool(
@@ -207,6 +213,38 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     assert manifest["modes"][0]["shape_url"] == "s1_m1.json"
     assert (manifest_path.parent / "s1_m1.json").exists()
     assert all(Path(path).exists() for path in op2_viewer["artifacts"])
+    modal_config = json.loads(Path(op2_viewer["summary"]["viewer_config"]).read_text(encoding="utf-8"))
+    assert modal_config["modes_url"] == "data/modes/manifest.json"
+    assert modal_config["initial_mode_id"] == "s1_m1"
+    assert modal_config["auto_animate"] is True
+
+    discovered_modal_export = _write_mode_shape_export(tmp_path / "demo.json")
+    discovered = run_engineering_tool(
+        "op2_mode_shape_viewer_build",
+        {
+            "bdf": str(bdf),
+            "out": str(tmp_path / "discovered_op2_viewer"),
+            "mode_number": 1,
+        },
+    )
+    assert discovered["status"] == "ok"
+    assert discovered["summary"]["op2_parser"] == "op2_json_export"
+    assert discovered["summary"]["mode_count"] == 2
+    discovered_config = json.loads(Path(discovered["summary"]["viewer_config"]).read_text(encoding="utf-8"))
+    assert discovered_config["initial_mode_id"] == "s1_m1"
+    assert discovered_config["auto_animate"] is True
+    assert Path(discovered_modal_export).exists()
+
+    bdf_modal = run_engineering_tool(
+        "bdf_3d_viewer_build",
+        {
+            "bdf": str(bdf),
+            "out": str(tmp_path / "bdf_modal_viewer"),
+            "first_mode": True,
+        },
+    )
+    assert bdf_modal["status"] == "ok"
+    assert bdf_modal["summary"]["mode_count"] == 2
 
     mismatched_export = _write_mode_shape_export(tmp_path / "mismatched_modes.json", extra_node=True)
     mismatched = run_engineering_tool(

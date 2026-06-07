@@ -78,6 +78,8 @@ def build_bdf_3d_viewer(
         title=title or Path(bdf).name,
         geometry=geometry,
         modes_manifest=None,
+        initial_mode=None,
+        auto_animate=False,
     )
     server = start_viewer_server(workspace, port=port)
     return _viewer_result(paths, geometry, server, modes_manifest=None)
@@ -91,6 +93,8 @@ def build_op2_mode_shape_viewer(
     title: str | None = None,
     port: int | None = None,
     mode_limit: int | None = None,
+    initial_mode: str | int | None = 1,
+    auto_animate: bool = True,
 ) -> dict[str, Any]:
     """Build and serve an HTML viewer for BDF geometry plus modal results."""
 
@@ -107,6 +111,8 @@ def build_op2_mode_shape_viewer(
         title=title or f"{Path(bdf).name} modal results",
         geometry=geometry,
         modes_manifest=modes_manifest,
+        initial_mode=initial_mode,
+        auto_animate=auto_animate,
     )
     server = start_viewer_server(workspace, port=port)
     return _viewer_result(paths, geometry, server, modes_manifest=modes_manifest)
@@ -182,6 +188,8 @@ def _write_workspace(
     title: str,
     geometry: Mapping[str, Any],
     modes_manifest: Mapping[str, Any] | None,
+    initial_mode: str | int | None,
+    auto_animate: bool,
 ) -> dict[str, Path]:
     data_dir = workspace / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -193,6 +201,8 @@ def _write_workspace(
         "title": title,
         "geometry_url": "data/geometry.json",
         "modes_url": "data/modes/manifest.json" if modes_manifest else None,
+        "initial_mode_id": _resolve_initial_mode_id(modes_manifest, initial_mode),
+        "auto_animate": bool(auto_animate and modes_manifest),
     }
     config_path = _write_json(workspace / "viewer_config.json", config)
     return {
@@ -263,6 +273,35 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
     return path
+
+
+def _resolve_initial_mode_id(modes_manifest: Mapping[str, Any] | None, requested: str | int | None) -> str | None:
+    if modes_manifest is None or not modes_manifest.get("modes"):
+        return None
+    modes = list(modes_manifest["modes"])
+    if requested is None or str(requested).strip() == "":
+        return None
+
+    requested_text = str(requested).strip()
+    if requested_text.lower() == "first":
+        return str(modes[0]["mode_id"])
+
+    for mode in modes:
+        if str(mode.get("mode_id")) == requested_text:
+            return str(mode["mode_id"])
+
+    try:
+        requested_number = int(float(requested_text))
+    except ValueError:
+        return None
+
+    for mode in modes:
+        if int(mode.get("mode_number") or -1) == requested_number:
+            return str(mode["mode_id"])
+
+    if 1 <= requested_number <= len(modes):
+        return str(modes[requested_number - 1]["mode_id"])
+    return None
 
 
 def _server_dict(handle: _ServerHandle) -> dict[str, Any]:

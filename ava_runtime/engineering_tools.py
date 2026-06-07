@@ -101,20 +101,37 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
     "bdf_3d_viewer_build": ApprovedTool(
         name="bdf_3d_viewer_build",
         category="visualization",
-        purpose="Generate and serve a local HTML/Three.js 3D viewer for BDF geometry.",
+        purpose=(
+            "Generate and serve a local HTML/Three.js 3D viewer for BDF geometry. "
+            "If a modal OP2/JSON result is supplied or can be discovered beside the BDF, "
+            "the viewer loads mode shapes with animation and GIF export controls."
+        ),
         risk_level="read_only",
         default_llm_exposure="summary_only",
-        inputs=("bdf",),
+        inputs=("bdf", "op2_optional", "mode_optional"),
         outputs=("index.html", "viewer_config.json", "geometry.json", "viewer_url"),
     ),
     "op2_mode_shape_viewer_build": ApprovedTool(
         name="op2_mode_shape_viewer_build",
         category="visualization",
-        purpose="Generate and serve a local HTML/Three.js viewer for BDF geometry plus OP2 modal mode shapes.",
+        purpose=(
+            "Generate and serve a local HTML/Three.js viewer for BDF geometry plus "
+            "OP2 or modal JSON mode shapes. "
+            "Use this when a user asks to view/animate a mode, including requests "
+            "like 'view the first mode'; "
+            "the OP2 path is optional when a matching .op2 or modal JSON file sits beside the BDF."
+        ),
         risk_level="derived_data",
         default_llm_exposure="summary_only",
-        inputs=("bdf", "op2"),
-        outputs=("index.html", "viewer_config.json", "geometry.json", "manifest.json", "viewer_url"),
+        inputs=("bdf", "op2_optional", "mode_optional"),
+        outputs=(
+            "index.html",
+            "viewer_config.json",
+            "geometry.json",
+            "manifest.json",
+            "viewer_url",
+            "gif_export_button",
+        ),
     ),
     "modal_frf_compute": ApprovedTool(
         name="modal_frf_compute",
@@ -403,26 +420,144 @@ def _optional_int(value: object) -> int | None:
     return int(value)
 
 
+def _optional_bool(value: object, *, default: bool = False) -> bool:
+    if value is None or str(value).strip() == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on", "animate", "animated"}
+
+
+def _initial_mode_from_params(params: Mapping[str, Any]) -> str | int | None:
+    for key in ("initial_mode", "initial_mode_id", "mode_id", "mode_number", "mode", "mode_index"):
+        value = params.get(key)
+        if value is not None and str(value).strip() != "":
+            return value
+    if _optional_bool(params.get("first_mode"), default=False):
+        return 1
+    return None
+
+
+def _mode_requested(params: Mapping[str, Any]) -> bool:
+    has_mode_selector = any(
+        key in params
+        for key in (
+            "initial_mode",
+            "initial_mode_id",
+            "mode_id",
+            "mode_number",
+            "mode",
+            "mode_index",
+            "first_mode",
+        )
+    )
+    return (
+        has_mode_selector
+        or _optional_bool(params.get("animate"), default=False)
+        or _optional_bool(params.get("auto_animate"), default=False)
+    )
+
+
+def _mode_result_path_from_params(params: Mapping[str, Any]) -> Path | None:
+    for key in ("op2", "modes", "modes_path", "modal_result", "modal_result_path", "result"):
+        value = params.get(key)
+        if value is not None and str(value).strip():
+            return Path(str(value))
+    return None
+
+
+def _discover_mode_result_for_bdf(bdf: str | Path) -> Path | None:
+    bdf_path = Path(str(bdf)).expanduser()
+    parent = bdf_path.parent
+    stem = bdf_path.stem
+    exact_candidates = [
+        parent / f"{stem}.op2",
+        parent / f"{stem}.OP2",
+        parent / f"{stem}.json",
+        parent / f"{stem}_modes.json",
+        parent / f"{stem}-modes.json",
+        parent / f"{stem}_modal.json",
+        parent / f"{stem}-modal.json",
+    ]
+    for candidate in exact_candidates:
+        if candidate.exists():
+            return candidate
+
+    matches = sorted(
+        [
+            candidate
+            for pattern in (f"{stem}*.op2", f"{stem}*.OP2", f"{stem}*mode*.json", f"{stem}*modal*.json")
+            for candidate in parent.glob(pattern)
+            if candidate.is_file()
+        ],
+        key=lambda path: (path.suffix.lower() != ".op2", path.name.lower()),
+    )
+    return matches[0] if matches else None
+
+
+def _resolve_mode_result_for_viewer(params: Mapping[str, Any], *, required: bool) -> Path | None:
+    explicit = _mode_result_path_from_params(params)
+    if explicit is not None:
+        return explicit
+    discovered = _discover_mode_result_for_bdf(params["bdf"])
+    if discovered is not None:
+        return discovered
+    if required:
+        bdf = Path(str(params["bdf"]))
+        raise FileNotFoundError(
+            f"No modal result was supplied and no matching .op2 or modal JSON was found beside {bdf}"
+        )
+    return None
+
+
 def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
-    payload = build_bdf_3d_viewer(
-        params["bdf"],
-        out,
-        title=str(params["title"]) if params.get("title") else None,
-        port=_optional_int(params.get("port")),
+    mode_result = (
+        _resolve_mode_result_for_viewer(params, required=False)
+        if _mode_requested(params) or _mode_result_path_from_params(params)
+        else None
     )
+    if mode_result is not None:
+        auto_animate = _optional_bool(
+            params.get("auto_animate"),
+            default=_optional_bool(params.get("animate"), default=True),
+        )
+        payload = build_op2_mode_shape_viewer(
+            params["bdf"],
+            mode_result,
+            out,
+            title=str(params["title"]) if params.get("title") else None,
+            port=_optional_int(params.get("port")),
+            mode_limit=_optional_int(params.get("mode_limit")),
+            initial_mode=_initial_mode_from_params(params) or 1,
+            auto_animate=auto_animate,
+        )
+    else:
+        payload = build_bdf_3d_viewer(
+            params["bdf"],
+            out,
+            title=str(params["title"]) if params.get("title") else None,
+            port=_optional_int(params.get("port")),
+        )
     return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, payload["summary"], tuple(payload["artifacts"]))
 
 
 def _run_op2_mode_shape_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
+    mode_result = _resolve_mode_result_for_viewer(params, required=True)
+    auto_animate = _optional_bool(
+        params.get("auto_animate"),
+        default=_optional_bool(params.get("animate"), default=True),
+    )
     payload = build_op2_mode_shape_viewer(
         params["bdf"],
-        params["op2"],
+        mode_result,
         out,
         title=str(params["title"]) if params.get("title") else None,
         port=_optional_int(params.get("port")),
         mode_limit=_optional_int(params.get("mode_limit")),
+        initial_mode=_initial_mode_from_params(params) or 1,
+        auto_animate=auto_animate,
     )
     return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, payload["summary"], tuple(payload["artifacts"]))
 

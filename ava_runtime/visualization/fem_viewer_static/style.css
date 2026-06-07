@@ -328,6 +328,10 @@ p {
   box-shadow: 0 12px 30px rgba(20, 32, 43, 0.14);
 }
 
+.mode-panel button + button {
+  margin-top: 8px;
+}
+
 .field {
   display: grid;
   gap: 6px;
