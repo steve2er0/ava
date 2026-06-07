@@ -1,7 +1,7 @@
 """Send Message Tool -- cross-channel messaging via platform APIs.
 
 Sends a message to a user or channel on any connected messaging platform
-(Telegram, Discord, Slack). Supports listing available targets and resolving
+(Discord, Slack, Signal, etc.). Supports listing available targets and resolving
 human-friendly channel names to IDs. Works in both CLI and gateway contexts.
 """
 
@@ -38,7 +38,7 @@ _NUMERIC_TOPIC_RE = _TELEGRAM_TOPIC_TARGET_RE
 # below and falls through to channel-name resolution, which has no way to
 # resolve a raw phone number. Keeping the '+' preserves the E.164 form that
 # downstream adapters (signal, etc.) expect.
-_PHONE_PLATFORMS = frozenset({"signal", "sms", "whatsapp"})
+_PHONE_PLATFORMS = frozenset({"signal", "sms"})
 _E164_TARGET_RE = re.compile(r"^\s*\+(\d{7,15})\s*$")
 # Email addresses — a valid email like "user@domain.com" should be treated as
 # an explicit target for the email platform, not fall through to channel-name
@@ -130,7 +130,7 @@ SEND_MESSAGE_SCHEMA = {
         "IMPORTANT: When the user asks to send to a specific channel or person "
         "(not just a bare platform name), call send_message(action='list') FIRST to see "
         "available targets, then send to the correct one.\n"
-        "If the user just says a platform name like 'send to telegram', send directly "
+        "If the user just says a platform name like 'send to slack', send directly "
         "to the home channel without listing first."
     ),
     "parameters": {
@@ -143,7 +143,7 @@ SEND_MESSAGE_SCHEMA = {
             },
             "target": {
                 "type": "string",
-                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or 'platform:chat_id:thread_id' for Telegram topics and Discord threads. Examples: 'telegram', 'telegram:-1001234567890:17585', 'discord:999888777:555444333', 'discord:#bot-home', 'slack:#engineering', 'signal:+155****4567', 'matrix:!roomid:server.org', 'matrix:@user:server.org', 'yuanbao:direct:<account_id>' (DM), 'yuanbao:group:<group_code>' (group chat)"
+                "description": "Delivery target. Format: 'platform' (uses home channel), 'platform:#channel-name', 'platform:chat_id', or 'platform:chat_id:thread_id' where supported. Examples: 'discord:999888777:555444333', 'discord:#bot-home', 'slack:#engineering', 'signal:+155****4567', 'matrix:!roomid:server.org', 'matrix:@user:server.org', 'yuanbao:direct:<account_id>' (DM), 'yuanbao:group:<group_code>' (group chat)"
             },
             "message": {
                 "type": "string",
@@ -183,6 +183,8 @@ def _handle_send(args):
 
     parts = target.split(":", 1)
     platform_name = parts[0].strip().lower()
+    if platform_name in {"telegram", "whatsapp", "homeassistant"}:
+        return tool_error(f"Platform '{platform_name}' is not available in AVA.")
     target_ref = parts[1].strip() if len(parts) > 1 else None
     chat_id = None
     thread_id = None
@@ -402,7 +404,7 @@ def _parse_target_ref(platform_name: str, target_ref: str):
     if platform_name in _PHONE_PLATFORMS:
         match = _E164_TARGET_RE.fullmatch(target_ref)
         if match:
-            # Preserve the leading '+' — signal-cli and sms/whatsapp adapters
+            # Preserve the leading '+' — signal-cli and sms adapters
             # expect E.164 format for direct recipients.
             return target_ref.strip(), None, True
     if target_ref.lstrip("-").isdigit():
@@ -753,7 +755,7 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     if media_files and not message.strip():
         return {
             "error": (
-                f"send_message MEDIA delivery is currently only supported for telegram, discord, matrix, weixin, signal, yuanbao and feishu; "
+                f"send_message MEDIA delivery is currently only supported for discord, matrix, weixin, signal, yuanbao and feishu; "
                 f"target {platform.value} had only media attachments"
             )
         }
@@ -761,15 +763,13 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
     if media_files:
         warning = (
             f"MEDIA attachments were omitted for {platform.value}; "
-            "native send_message media delivery is currently only supported for telegram, discord, matrix, weixin, signal, yuanbao and feishu"
+            "native send_message media delivery is currently only supported for discord, matrix, weixin, signal, yuanbao and feishu"
         )
 
     last_result = None
     for chunk in chunks:
         if platform == Platform.SLACK:
             result = await _send_slack(pconfig.token, chat_id, chunk)
-        elif platform == Platform.WHATSAPP:
-            result = await _send_whatsapp(pconfig.extra, chat_id, chunk)
         elif platform == Platform.SIGNAL:
             result = await _send_signal(pconfig.extra, chat_id, chunk)
         elif platform == Platform.EMAIL:
@@ -778,8 +778,6 @@ async def _send_to_platform(platform, pconfig, chat_id, message, thread_id=None,
             result = await _send_sms(pconfig.api_key, chat_id, chunk)
         elif platform == Platform.MATRIX:
             result = await _send_matrix(pconfig.token, pconfig.extra, chat_id, chunk)
-        elif platform == Platform.HOMEASSISTANT:
-            result = await _send_homeassistant(pconfig.token, pconfig.extra, chat_id, chunk)
         elif platform == Platform.DINGTALK:
             result = await _send_dingtalk(pconfig.extra, chat_id, chunk)
         elif platform == Platform.FEISHU:
@@ -1070,34 +1068,6 @@ async def _send_slack(token, chat_id, message):
                 return _error(f"Slack API error: {data.get('error', 'unknown')}")
     except Exception as e:
         return _error(f"Slack send failed: {e}")
-
-
-async def _send_whatsapp(extra, chat_id, message):
-    """Send via the local WhatsApp bridge HTTP API."""
-    try:
-        import aiohttp
-    except ImportError:
-        return {"error": "aiohttp not installed. Run: pip install aiohttp"}
-    try:
-        bridge_port = extra.get("bridge_port", 3000)
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"http://localhost:{bridge_port}/send",
-                json={"chatId": chat_id, "message": message},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return {
-                        "success": True,
-                        "platform": "whatsapp",
-                        "chat_id": chat_id,
-                        "message_id": data.get("messageId"),
-                    }
-                body = await resp.text()
-                return _error(f"WhatsApp bridge error ({resp.status}): {body}")
-    except Exception as e:
-        return _error(f"WhatsApp send failed: {e}")
 
 
 async def _send_signal(extra, chat_id, message, media_files=None):
@@ -1472,29 +1442,6 @@ async def _send_matrix_via_adapter(pconfig, chat_id, message, media_files=None, 
             await adapter.disconnect()
         except Exception:
             pass
-
-
-async def _send_homeassistant(token, extra, chat_id, message):
-    """Send via Home Assistant notify service."""
-    try:
-        import aiohttp
-    except ImportError:
-        return {"error": "aiohttp not installed. Run: pip install aiohttp"}
-    try:
-        hass_url = (extra.get("url") or os.getenv("HASS_URL", "")).rstrip("/")
-        token = token or os.getenv("HASS_TOKEN", "")
-        if not hass_url or not token:
-            return {"error": "Home Assistant not configured (HASS_URL, HASS_TOKEN required)"}
-        url = f"{hass_url}/api/services/notify/notify"
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.post(url, headers=headers, json={"message": message, "target": chat_id}) as resp:
-                if resp.status not in {200, 201}:
-                    body = await resp.text()
-                    return _error(f"Home Assistant API error ({resp.status}): {body}")
-        return {"success": True, "platform": "homeassistant", "chat_id": chat_id}
-    except Exception as e:
-        return _error(f"Home Assistant send failed: {e}")
 
 
 async def _send_dingtalk(extra, chat_id, message):

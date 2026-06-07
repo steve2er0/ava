@@ -77,7 +77,6 @@ CONFIGURABLE_TOOLSETS = [
     ("delegation",      "👥 Task Delegation",           "delegate_task"),
     ("cronjob",         "⏰ Cron Jobs",                 "create/list/update/pause/resume/run, with optional attached skills"),
     ("messaging",       "📨 Cross-Platform Messaging",  "send_message"),
-    ("homeassistant",    "🏠 Home Assistant",           "smart home device control"),
     ("spotify",          "🎵 Spotify",                  "playback, search, playlists, library"),
     ("discord",         "💬 Discord (read/participate)", "fetch messages, search members, create thread"),
     ("discord_admin",   "🛡️  Discord Server Admin",    "list channels/roles, pin, assign roles"),
@@ -95,11 +94,18 @@ CONFIGURABLE_TOOLSETS = [
 #
 # X search is off by default for users without xAI credentials, but
 # auto-enables when SuperGrok OAuth tokens are stored OR XAI_API_KEY is
-# set — mirroring the HASS_TOKEN → homeassistant auto-enable below. The
+# set. The
 # `hermes tools` → X (Twitter) Search setup walks users through credential
 # setup. The tool's check_fn means the schema still won't appear to the
 # model if the credential later goes missing or expires.
-_DEFAULT_OFF_TOOLSETS = {"moa", "homeassistant", "spotify", "discord", "discord_admin", "video", "video_gen", "x_search"}
+_DEFAULT_OFF_TOOLSETS = {"moa", "spotify", "discord", "discord_admin", "video", "video_gen", "x_search"}
+_REMOVED_PLATFORM_TOOLSETS = {
+    "telegram": "hermes-telegram",
+    "whatsapp": "hermes-whatsapp",
+    "homeassistant": "hermes-homeassistant",
+}
+_REMOVED_PLATFORM_KEYS = set(_REMOVED_PLATFORM_TOOLSETS)
+_REMOVED_PLATFORM_DEFAULT_TOOLSETS = set(_REMOVED_PLATFORM_TOOLSETS.values())
 
 
 def _xai_credentials_present() -> bool:
@@ -447,20 +453,6 @@ TOOL_CATEGORIES = {
                 ],
                 "browser_provider": "camofox",
                 "post_setup": "camofox",
-            },
-        ],
-    },
-    "homeassistant": {
-        "name": "Smart Home",
-        "icon": "🏠",
-        "providers": [
-            {
-                "name": "Home Assistant",
-                "tag": "REST API integration",
-                "env_vars": [
-                    {"key": "HASS_TOKEN", "prompt": "Home Assistant Long-Lived Access Token"},
-                    {"key": "HASS_URL", "prompt": "Home Assistant URL", "default": "http://homeassistant.local:8123"},
-                ],
             },
         ],
     },
@@ -1153,14 +1145,10 @@ def _run_post_setup(post_setup_key: str):
 def _get_enabled_platforms() -> List[str]:
     """Return platform keys that are configured (have tokens or are CLI)."""
     enabled = ["cli"]
-    if get_env_value("TELEGRAM_BOT_TOKEN"):
-        enabled.append("telegram")
     if get_env_value("DISCORD_BOT_TOKEN"):
         enabled.append("discord")
     if get_env_value("SLACK_BOT_TOKEN"):
         enabled.append("slack")
-    if get_env_value("WHATSAPP_ENABLED"):
-        enabled.append("whatsapp")
     if get_env_value("QQ_APP_ID"):
         enabled.append("qqbot")
     return enabled
@@ -1212,8 +1200,9 @@ def _get_platform_tools(
     toolset_names = platform_toolsets.get(platform)
 
     if toolset_names is None or not isinstance(toolset_names, list):
-        plat_info = PLATFORMS.get(platform)
-        if plat_info:
+        if platform in _REMOVED_PLATFORM_KEYS:
+            default_ts = "hermes-cli"
+        elif (plat_info := PLATFORMS.get(platform)):
             default_ts = plat_info["default_toolset"]
         else:
             # Plugin platform — derive toolset name from platform key
@@ -1223,10 +1212,18 @@ def _get_platform_tools(
     # YAML may parse bare numeric names (e.g. ``12306:``) as int.
     # Normalise to str so downstream sorted() never mixes types.
     toolset_names = [str(ts) for ts in toolset_names]
+    toolset_names = [
+        ts for ts in toolset_names
+        if ts not in _REMOVED_PLATFORM_DEFAULT_TOOLSETS
+    ]
+    if platform in _REMOVED_PLATFORM_KEYS and not toolset_names:
+        toolset_names = ["hermes-cli"]
 
     configurable_keys = {ts_key for ts_key, _, _ in CONFIGURABLE_TOOLSETS}
     plugin_ts_keys = _get_plugin_toolset_keys()
-    platform_default_keys = {p["default_toolset"] for p in PLATFORMS.values()}
+    platform_default_keys = {
+        p["default_toolset"] for p in PLATFORMS.values()
+    } | _REMOVED_PLATFORM_DEFAULT_TOOLSETS
 
     # If the saved list contains any configurable keys directly, the user
     # has explicitly configured this platform — use direct membership.
@@ -1267,8 +1264,6 @@ def _get_platform_tools(
             default_off = set(_DEFAULT_OFF_TOOLSETS)
             if platform in default_off and platform not in _TOOLSET_PLATFORM_RESTRICTIONS:
                 default_off.remove(platform)
-            if "homeassistant" in default_off and os.getenv("HASS_TOKEN"):
-                default_off.remove("homeassistant")
             expanded -= default_off
 
             enabled_toolsets |= expanded
@@ -1288,15 +1283,11 @@ def _get_platform_tools(
                 enabled_toolsets.add(ts_key)
 
         # Auto-enable ``x_search`` when xAI credentials are configured.
-        # Unlike ``homeassistant`` (whose ``ha_*`` tools live inside the
-        # platform composite and thus pass the subset check above),
         # ``x_search`` is its own one-tool toolset that the composite does
         # NOT include, so the subset loop never picks it up. Inject it
-        # directly here, mirroring the HASS_TOKEN → ``homeassistant`` rule
-        # below: once you have working creds, you don't have to also click
-        # through ``hermes tools`` to flip the toolset on. Only fires when
-        # the user has not yet saved an explicit toolset list — once they
-        # do, the saved list is authoritative.
+        # directly here once credentials exist. Only fires when the user has
+        # not yet saved an explicit toolset list — once they do, the saved
+        # list is authoritative.
         x_search_auto_enabled = (
             _toolset_allowed_for_platform("x_search", platform)
             and _xai_credentials_present()
@@ -1306,21 +1297,11 @@ def _get_platform_tools(
 
         default_off = set(_DEFAULT_OFF_TOOLSETS)
         # Legacy safety: if the platform's own name matches a default-off
-        # toolset (e.g. `homeassistant` platform + `homeassistant` toolset),
-        # keep that toolset enabled on first install.  Skip this dodge for
+        # toolset, keep that toolset enabled on first install. Skip this for
         # platform-restricted toolsets — those are always opt-in even on
         # their own platform (e.g. `discord` + `discord` should stay OFF).
         if platform in default_off and platform not in _TOOLSET_PLATFORM_RESTRICTIONS:
             default_off.remove(platform)
-        # Home Assistant is already runtime-gated by its check_fn (requires
-        # HASS_TOKEN to register any tools). When a user has configured
-        # HASS_TOKEN, they've explicitly opted in — don't also strip it via
-        # _DEFAULT_OFF_TOOLSETS, which would silently drop HA from platforms
-        # (e.g. cron) that run through _get_platform_tools without an
-        # explicit saved toolset list. Without this, Norbert's HA cron jobs
-        # regressed after #14798 made cron honor per-platform tool config.
-        if "homeassistant" in default_off and os.getenv("HASS_TOKEN"):
-            default_off.remove("homeassistant")
         # Symmetric carve-out for x_search auto-enable (see the inject
         # block above). Without this, the default_off subtraction would
         # strip the entry we just added.
@@ -1457,9 +1438,9 @@ def _save_platform_tools(config: dict, platform: str, enabled_toolset_keys: Set[
     """
     config.setdefault("platform_toolsets", {})
 
-    # Drop platform-scoped toolsets that don't apply here.  Prevents the
+    # Drop platform-scoped toolsets that don't apply here. Prevents the
     # "Configure all platforms" checklist (or a hand-edited config.yaml)
-    # from turning on, say, the `discord` toolset for Telegram.
+    # from turning on, say, the `discord` toolset for Slack.
     enabled_toolset_keys = {
         ts for ts in enabled_toolset_keys
         if _toolset_allowed_for_platform(ts, platform)
@@ -1470,10 +1451,12 @@ def _save_platform_tools(config: dict, platform: str, enabled_toolset_keys: Set[
     plugin_keys = _get_plugin_toolset_keys()
     configurable_keys |= plugin_keys
 
-    # Also exclude platform default toolsets (hermes-cli, hermes-telegram, etc.)
+    # Also exclude platform default toolsets (hermes-cli, hermes-slack, etc.)
     # These are "super" toolsets that resolve to ALL tools, so preserving them
     # would silently override the user's unchecked selections on the next read.
-    platform_default_keys = {p["default_toolset"] for p in PLATFORMS.values()}
+    platform_default_keys = {
+        p["default_toolset"] for p in PLATFORMS.values()
+    } | _REMOVED_PLATFORM_DEFAULT_TOOLSETS
 
     # Get existing toolsets for this platform
     existing_toolsets = cfg_get(config, "platform_toolsets", platform, default=[])

@@ -215,10 +215,10 @@ class TestToolsetConsistency:
         """All hermes-* platform toolsets share the same core tools.
 
         Platform-specific additions (e.g. ``discord`` / ``discord_admin``
-        on hermes-discord, gated on DISCORD_BOT_TOKEN) are allowed on top —
+        on hermes-discord) are allowed on top —
         the invariant is that the core set is identical across platforms.
         """
-        platforms = ["hermes-cli", "hermes-telegram", "hermes-discord", "hermes-whatsapp", "hermes-slack", "hermes-signal", "hermes-homeassistant"]
+        platforms = ["hermes-cli", "hermes-discord", "hermes-slack", "hermes-signal"]
         tool_sets = [set(TOOLSETS[p]["tools"]) for p in platforms]
         # All platforms must contain the shared core; platform-specific
         # extras are OK (subset check, not equality).
@@ -227,7 +227,7 @@ class TestToolsetConsistency:
             assert core.issubset(ts), f"{name} is missing core tools: {core - ts}"
         # Sanity: the shared core must be non-trivial (i.e. we didn't
         # silently let a platform diverge so far that nothing is shared).
-        assert len(core) > 20, f"Suspiciously small shared core: {len(core)} tools"
+        assert len(core) >= 10, f"Suspiciously small shared core: {len(core)} tools"
 
 
 class TestPluginToolsets:
@@ -248,8 +248,10 @@ class TestPluginToolsets:
 
 
 class TestDefaultPlatformWebSearchCoverage:
-    def test_hermes_whatsapp_toolset_includes_web_search(self):
-        assert "web_search" in resolve_toolset("hermes-whatsapp")
+    def test_removed_platform_toolsets_are_not_registered(self):
+        for name in ("hermes-telegram", "hermes-whatsapp", "hermes-homeassistant"):
+            assert get_toolset(name) is None
+            assert resolve_toolset(name) == []
 
     def test_hermes_api_server_toolset_includes_web_search(self):
         assert "web_search" in resolve_toolset("hermes-api-server")

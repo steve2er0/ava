@@ -19,6 +19,7 @@ from hermes_cli.tools_config import (
     _toolset_has_keys,
     _toolset_needs_configuration_prompt,
     CONFIGURABLE_TOOLSETS,
+    PLATFORMS,
     TOOL_CATEGORIES,
     _visible_providers,
     tools_command,
@@ -125,57 +126,51 @@ def test_get_platform_tools_context_engine_respects_explicit_empty_selection():
     assert "context_engine" not in enabled
 
 
-def test_get_platform_tools_default_telegram_includes_messaging():
-    enabled = _get_platform_tools({}, "telegram")
-
-    assert "messaging" in enabled
-
-
-def test_get_platform_tools_default_whatsapp_includes_web():
-    enabled = _get_platform_tools({}, "whatsapp")
-
-    assert "web" in enabled
+def test_removed_platforms_are_not_configurable():
+    assert "telegram" not in PLATFORMS
+    assert "whatsapp" not in PLATFORMS
+    assert "homeassistant" not in PLATFORMS
 
 
-def test_get_platform_tools_homeassistant_platform_keeps_homeassistant_toolset():
-    enabled = _get_platform_tools({}, "homeassistant")
-
-    assert "homeassistant" in enabled
-
-
-def test_get_platform_tools_homeassistant_toolset_enabled_for_cron_when_hass_token_set(monkeypatch):
-    """HA toolset is runtime-gated by check_fn (requires HASS_TOKEN).
-
-    When HASS_TOKEN is set, the user has explicitly opted in — _DEFAULT_OFF_TOOLSETS
-    shouldn't also strip HA from platforms (like cron) that run through
-    _get_platform_tools without an explicit saved toolset list.
-
-    Regression guard for Norbert's HA cron breakage after #14798 made cron
-    honor per-platform tool config.
-    """
+def test_homeassistant_toolset_removed(monkeypatch):
     monkeypatch.setenv("HASS_TOKEN", "fake-test-token")
 
-    cron_enabled = _get_platform_tools({}, "cron")
-    assert "homeassistant" in cron_enabled
-    # moa must stay off — the original goal of #14798
-    assert "moa" not in cron_enabled
+    keys = {ts_key for ts_key, _, _ in CONFIGURABLE_TOOLSETS}
+    assert "homeassistant" not in keys
+    assert "homeassistant" not in _DEFAULT_OFF_TOOLSETS
+    assert "homeassistant" not in TOOL_CATEGORIES
+    assert "homeassistant" not in _get_platform_tools({}, "cli")
+    assert "homeassistant" not in _get_platform_tools({}, "cron")
 
-    cli_enabled = _get_platform_tools({}, "cli")
-    assert "homeassistant" in cli_enabled
+
+def test_removed_platforms_fall_back_to_secure_cli_default():
+    for platform in ("telegram", "whatsapp", "homeassistant"):
+        enabled = _get_platform_tools({}, platform, include_default_mcp_servers=False)
+        assert "terminal" in enabled
+        assert "file" in enabled
+        assert platform not in enabled
+        assert f"hermes-{platform}" not in enabled
 
 
-def test_get_platform_tools_homeassistant_toolset_off_for_cron_when_hass_token_missing(monkeypatch):
-    """Without HASS_TOKEN, HA stays off by default — preserves #14798's behavior
-    for users who never configured HA."""
-    monkeypatch.delenv("HASS_TOKEN", raising=False)
+def test_stale_removed_platform_presets_are_ignored():
+    config = {
+        "platform_toolsets": {
+            "cli": ["hermes-cli", "hermes-telegram", "hermes-whatsapp", "hermes-homeassistant"],
+        },
+    }
 
-    cron_enabled = _get_platform_tools({}, "cron")
-    assert "homeassistant" not in cron_enabled
+    enabled = _get_platform_tools(config, "cli", include_default_mcp_servers=False)
+
+    assert "terminal" in enabled
+    assert "file" in enabled
+    assert "hermes-telegram" not in enabled
+    assert "hermes-whatsapp" not in enabled
+    assert "hermes-homeassistant" not in enabled
 
 
 def test_get_platform_tools_x_search_auto_enabled_when_xai_oauth_present(monkeypatch):
     """x_search toolset auto-enables across platforms when xAI Grok OAuth
-    tokens are present, mirroring the HASS_TOKEN → homeassistant rule.
+    tokens are present.
 
     The user already authenticated via SuperGrok OAuth; they shouldn't have
     to also click through `hermes tools` → X (Twitter) Search to flip the
@@ -187,7 +182,7 @@ def test_get_platform_tools_x_search_auto_enabled_when_xai_oauth_present(monkeyp
         "hermes_cli.tools_config._xai_credentials_present", lambda: True
     )
 
-    for plat in ("cli", "cron", "telegram"):
+    for plat in ("cli", "cron", "slack"):
         enabled = _get_platform_tools({}, plat)
         assert "x_search" in enabled, f"x_search missing for {plat}"
 
@@ -238,9 +233,8 @@ def test_get_platform_tools_expands_composite_when_mixed_with_configurable():
 
     enabled = _get_platform_tools(config, "cli", include_default_mcp_servers=False)
 
-    # Native tools must reappear.
-    for ts in ("terminal", "file", "web", "browser", "memory", "delegation",
-               "code_execution", "todo", "session_search", "skills"):
+    # Native secure local-first toolsets must reappear.
+    for ts in ("terminal", "file", "memory", "todo", "session_search", "clarify"):
         assert ts in enabled, f"{ts} should be enabled when hermes-cli is listed"
     # User explicitly opted into Spotify — must survive _DEFAULT_OFF_TOOLSETS subtraction.
     assert "spotify" in enabled
@@ -277,7 +271,7 @@ def test_get_platform_tools_configurable_only_no_expansion():
 def test_get_platform_tools_mixed_does_not_resurrect_default_off():
     """Expansion must subtract _DEFAULT_OFF_TOOLSETS from the implicit
     pull-in. Without this, ``hermes-cli`` expansion would re-enable
-    ``moa`` / ``rl`` / ``homeassistant`` for users who never opted in."""
+    default-off toolsets such as ``moa`` / ``rl`` for users who never opted in."""
     config = {"platform_toolsets": {"cli": ["hermes-cli", "terminal"]}}
 
     enabled = _get_platform_tools(config, "cli", include_default_mcp_servers=False)
@@ -323,10 +317,10 @@ def test_apply_toolset_change_can_enable_default_off_toolset_from_default():
     config = {}
 
     with patch("hermes_cli.tools_config.save_config"):
-        _apply_toolset_change(config, "cli", ["homeassistant"], "enable")
+        _apply_toolset_change(config, "cli", ["spotify"], "enable")
 
     saved = set(config["platform_toolsets"]["cli"])
-    assert "homeassistant" in saved
+    assert "spotify" in saved
     assert "terminal" in saved
 
 
@@ -472,9 +466,9 @@ def test_save_platform_tools_handles_empty_existing_config():
     config = {}
 
     with patch("hermes_cli.tools_config.save_config"):
-        _save_platform_tools(config, "telegram", {"web", "terminal"})
+        _save_platform_tools(config, "slack", {"web", "terminal"})
 
-    saved_toolsets = config["platform_toolsets"]["telegram"]
+    saved_toolsets = config["platform_toolsets"]["slack"]
     assert "web" in saved_toolsets
     assert "terminal" in saved_toolsets
 
@@ -495,7 +489,7 @@ def test_save_platform_tools_handles_invalid_existing_config():
 
 
 def test_save_platform_tools_does_not_preserve_platform_default_toolsets():
-    """Platform default toolsets (hermes-cli, hermes-telegram, etc.) must NOT
+    """Platform default toolsets (hermes-cli, hermes-slack, etc.) must NOT
     be preserved across saves.
 
     These "super" toolsets resolve to ALL tools, so if they survive in the
@@ -504,7 +498,7 @@ def test_save_platform_tools_does_not_preserve_platform_default_toolsets():
     terminal, etc.) and treated platform defaults as unknown custom entries
     (like MCP server names), causing them to be kept unconditionally.
 
-    Regression test: user unchecks image_gen and homeassistant via
+    Regression test: user unchecks image_gen and moa via
     ``hermes tools``, but hermes-cli stays in the config and re-enables
     everything on the next read.
     """
@@ -519,7 +513,7 @@ def test_save_platform_tools_does_not_preserve_platform_default_toolsets():
         }
     }
 
-    # User unchecks image_gen, homeassistant, moa — keeps the rest
+    # User unchecks image_gen and moa — keeps the rest
     new_selection = {
         "browser", "clarify", "code_execution", "cronjob",
         "delegation", "file", "memory", "session_search",
@@ -541,16 +535,15 @@ def test_save_platform_tools_does_not_preserve_platform_default_toolsets():
 
     # Tools the user unchecked must NOT be present
     assert "image_gen" not in saved
-    assert "homeassistant" not in saved
     assert "moa" not in saved
 
 
-def test_save_platform_tools_does_not_preserve_hermes_telegram():
-    """Same bug for Telegram — hermes-telegram must not be preserved."""
+def test_save_platform_tools_does_not_preserve_hermes_slack():
+    """Same bug for Slack — hermes-slack must not be preserved."""
     config = {
         "platform_toolsets": {
-            "telegram": [
-                "browser", "file", "hermes-telegram", "terminal", "web",
+            "slack": [
+                "browser", "file", "hermes-slack", "terminal", "web",
             ]
         }
     }
@@ -558,10 +551,10 @@ def test_save_platform_tools_does_not_preserve_hermes_telegram():
     new_selection = {"browser", "file", "terminal", "web"}
 
     with patch("hermes_cli.tools_config.save_config"):
-        _save_platform_tools(config, "telegram", new_selection)
+        _save_platform_tools(config, "slack", new_selection)
 
-    saved = config["platform_toolsets"]["telegram"]
-    assert "hermes-telegram" not in saved
+    saved = config["platform_toolsets"]["slack"]
+    assert "hermes-slack" not in saved
     assert "web" in saved
 
 
@@ -1218,9 +1211,9 @@ def test_discord_toolsets_in_default_off():
 
 def test_discord_toolsets_not_available_on_other_platforms():
     """Platform-scoping: discord / discord_admin should not appear on CLI,
-    Telegram, etc. — not even as an opt-in."""
+    Slack, etc. — not even as an opt-in."""
     from hermes_cli.tools_config import _toolset_allowed_for_platform
-    for plat in ["cli", "telegram", "slack", "whatsapp", "signal"]:
+    for plat in ["cli", "slack", "signal"]:
         assert not _toolset_allowed_for_platform("discord", plat), (
             f"`discord` toolset leaked onto {plat}"
         )
@@ -1241,11 +1234,11 @@ def test_discord_toolsets_user_enabled_are_honored():
 
 def test_save_platform_tools_strips_restricted_toolsets():
     """Hand-edited or all-platforms checklist with `discord` selected for
-    Telegram must be stripped at save time."""
+    Slack must be stripped at save time."""
     from hermes_cli.tools_config import _save_platform_tools
     config = {}
-    _save_platform_tools(config, "telegram", {"web", "terminal", "discord", "discord_admin"})
-    saved = config["platform_toolsets"]["telegram"]
+    _save_platform_tools(config, "slack", {"web", "terminal", "discord", "discord_admin"})
+    saved = config["platform_toolsets"]["slack"]
     assert "discord" not in saved
     assert "discord_admin" not in saved
     assert "web" in saved
@@ -1259,7 +1252,7 @@ def test_get_platform_tools_feishu_includes_doc_and_drive():
 
 
 def test_get_platform_tools_feishu_tools_not_on_other_platforms():
-    for plat in ["cli", "telegram", "discord"]:
+    for plat in ["cli", "slack", "discord"]:
         enabled = _get_platform_tools({}, plat)
         assert "feishu_doc" not in enabled, f"feishu_doc leaked onto {plat}"
         assert "feishu_drive" not in enabled, f"feishu_drive leaked onto {plat}"

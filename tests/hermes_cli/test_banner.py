@@ -9,7 +9,7 @@ import tools.mcp_tool
 
 
 def test_display_toolset_name_strips_legacy_suffix():
-    assert banner._display_toolset_name("homeassistant_tools") == "homeassistant"
+    assert banner._display_toolset_name("engineering_tools") == "engineering"
     assert banner._display_toolset_name("honcho_tools") == "honcho"
     assert banner._display_toolset_name("web_tools") == "web"
 
@@ -54,11 +54,11 @@ def test_build_welcome_banner_hides_unavailable_toolsets():
     assert "Nous Research" not in output
     assert "web:" in output
     assert "file:" in output
-    assert "homeassistant:" not in output
+    assert "engineering:" not in output
     assert "honcho:" not in output
-    assert "ha_call_service" not in output
+    assert "engineering_tool_catalog" not in output
     assert "honcho_conclude" not in output
-    assert "homeassistant_tools:" not in output
+    assert "engineering_tools:" not in output
     assert "honcho_tools:" not in output
     assert "web_tools:" not in output
 

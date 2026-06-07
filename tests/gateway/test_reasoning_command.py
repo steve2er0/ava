@@ -360,7 +360,7 @@ class TestReasoningCommand:
         assert "exa" in enabled_toolsets
         assert "web-search-prime" in enabled_toolsets
 
-    def test_run_agent_homeassistant_uses_default_platform_toolset(self, tmp_path, monkeypatch):
+    def test_run_agent_homeassistant_does_not_enable_removed_toolset(self, tmp_path, monkeypatch):
         hermes_home = tmp_path / "hermes"
         hermes_home.mkdir()
         (hermes_home / "config.yaml").write_text("", encoding="utf-8")
@@ -406,7 +406,10 @@ class TestReasoningCommand:
 
         assert result["final_response"] == "ok"
         assert _CapturingAgent.last_init is not None
-        assert "homeassistant" in set(_CapturingAgent.last_init["enabled_toolsets"])
+        enabled_toolsets = set(_CapturingAgent.last_init["enabled_toolsets"])
+        assert "homeassistant" not in enabled_toolsets
+        assert "terminal" in enabled_toolsets
+        assert "file" in enabled_toolsets
 
 
 class TestLoadShowReasoningCoercion:

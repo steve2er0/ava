@@ -1858,21 +1858,6 @@ DEFAULT_CONFIG = {
         "max_attachment_bytes": 33554432,
     },
 
-    # WhatsApp platform settings (gateway mode)
-    "whatsapp": {
-        # Reply prefix prepended to every outgoing WhatsApp message.
-        # Default (None) uses the built-in "⚕ *AVA*" header.
-        # Set to "" (empty string) to disable the header entirely.
-        # Supports \n for newlines, e.g. "🤖 *My Bot*\n──────\n"
-    },
-
-    # Telegram platform settings (gateway mode)
-    "telegram": {
-        "reactions": False,            # Add 👀/✅/❌ reactions to messages during processing
-        "channel_prompts": {},         # Per-chat/topic ephemeral system prompts (topics inherit from parent group)
-        "allowed_chats": "",           # If set, bot ONLY responds in these group/supergroup chat IDs (whitelist)
-    },
-
     # Mattermost platform settings (gateway mode)
     "mattermost": {
         "require_mention": True,       # Require @mention to respond in channels

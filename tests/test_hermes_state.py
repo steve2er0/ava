@@ -405,14 +405,14 @@ class TestMessageStorage:
 
         # Assistant makes 2 parallel tool calls in one message
         tool_calls = [
-            {"id": "call_1", "function": {"name": "ha_call_service", "arguments": "{}"}},
-            {"id": "call_2", "function": {"name": "ha_call_service", "arguments": "{}"}},
+            {"id": "call_1", "function": {"name": "web_search", "arguments": "{}"}},
+            {"id": "call_2", "function": {"name": "read_file", "arguments": "{}"}},
         ]
         db.append_message("s1", role="assistant", content="", tool_calls=tool_calls)
 
         # Two tool responses come back
-        db.append_message("s1", role="tool", content="ok", tool_name="ha_call_service")
-        db.append_message("s1", role="tool", content="ok", tool_name="ha_call_service")
+        db.append_message("s1", role="tool", content="ok", tool_name="web_search")
+        db.append_message("s1", role="tool", content="ok", tool_name="read_file")
 
         session = db.get_session("s1")
         # Should be 2 (the actual number of tool calls), not 3

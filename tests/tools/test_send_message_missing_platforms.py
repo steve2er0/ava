@@ -1,4 +1,4 @@
-"""Tests for _send_mattermost, _send_matrix, _send_homeassistant, _send_dingtalk."""
+"""Tests for _send_mattermost, _send_matrix, and _send_dingtalk."""
 
 import asyncio
 import os
@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from tools.send_message_tool import (
     _send_dingtalk,
-    _send_homeassistant,
     _send_matrix,
 )
 
@@ -209,62 +208,6 @@ class TestSendMatrix:
 
         assert len(txn_ids) == 2
         assert txn_ids[0] != txn_ids[1]
-
-
-# ---------------------------------------------------------------------------
-# _send_homeassistant
-# ---------------------------------------------------------------------------
-
-
-class TestSendHomeAssistant:
-    def test_success(self):
-        resp = _make_aiohttp_resp(200)
-        session_ctx, session = _make_aiohttp_session(resp)
-
-        with patch("aiohttp.ClientSession", return_value=session_ctx), \
-             patch.dict(os.environ, {"HASS_URL": "", "HASS_TOKEN": ""}, clear=False):
-            extra = {"url": "https://hass.example.com"}
-            result = asyncio.run(_send_homeassistant("hass-tok", extra, "mobile_app_phone", "alert!"))
-
-        assert result == {"success": True, "platform": "homeassistant", "chat_id": "mobile_app_phone"}
-        session.post.assert_called_once()
-        call_kwargs = session.post.call_args
-        assert call_kwargs[0][0] == "https://hass.example.com/api/services/notify/notify"
-        assert call_kwargs[1]["headers"]["Authorization"] == "Bearer hass-tok"
-        assert call_kwargs[1]["json"] == {"message": "alert!", "target": "mobile_app_phone"}
-
-    def test_http_error(self):
-        resp = _make_aiohttp_resp(401, text_data="Unauthorized")
-        session_ctx, _ = _make_aiohttp_session(resp)
-
-        with patch("aiohttp.ClientSession", return_value=session_ctx):
-            result = asyncio.run(_send_homeassistant(
-                "bad-tok", {"url": "https://hass.example.com"},
-                "target", "msg"
-            ))
-
-        assert "error" in result
-        assert "401" in result["error"]
-        assert "Unauthorized" in result["error"]
-
-    def test_missing_config(self):
-        with patch.dict(os.environ, {"HASS_URL": "", "HASS_TOKEN": ""}, clear=False):
-            result = asyncio.run(_send_homeassistant("", {}, "target", "msg"))
-
-        assert "error" in result
-        assert "HASS_URL" in result["error"] or "not configured" in result["error"]
-
-    def test_env_var_fallback(self):
-        resp = _make_aiohttp_resp(200)
-        session_ctx, session = _make_aiohttp_session(resp)
-
-        with patch("aiohttp.ClientSession", return_value=session_ctx), \
-             patch.dict(os.environ, {"HASS_URL": "https://hass.env.com", "HASS_TOKEN": "env-tok"}, clear=False):
-            result = asyncio.run(_send_homeassistant("", {}, "notify_target", "hi"))
-
-        assert result["success"] is True
-        url = session.post.call_args[0][0]
-        assert "hass.env.com" in url
 
 
 # ---------------------------------------------------------------------------

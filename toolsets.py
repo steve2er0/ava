@@ -28,7 +28,7 @@ from typing import List, Dict, Any, Set, Optional
 
 # Shared secure-by-default tool list for CLI and messaging platform toolsets.
 # Networked tools such as web, browser, image generation, TTS, delegation,
-# cron, messaging, Home Assistant, and computer-use are opt-in toolsets.
+# cron, messaging, and computer-use are opt-in toolsets.
 _HERMES_CORE_TOOLS = [
     # Terminal + process management
     "terminal", "process",
@@ -155,7 +155,7 @@ TOOLSETS = {
     },
     
     "messaging": {
-        "description": "Cross-platform messaging: send messages to Telegram, Discord, Slack, SMS, etc.",
+        "description": "Cross-platform messaging: send messages to configured messaging platforms.",
         "tools": ["send_message"],
         "includes": []
     },
@@ -223,12 +223,6 @@ TOOLSETS = {
 
     # "honcho" toolset removed — Honcho is now a memory provider plugin.
     # Tools are injected via MemoryManager, not the toolset system.
-
-    "homeassistant": {
-        "description": "Home Assistant smart home control and monitoring",
-        "tools": ["ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service"],
-        "includes": []
-    },
 
     "kanban": {
         "description": (
@@ -364,9 +358,6 @@ TOOLSETS = {
             "execute_code", "delegate_task",
             # Cronjob management
             "cronjob",
-            # Home Assistant smart home control (gated on HASS_TOKEN via check_fn)
-            "ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service",
-
         ],
         "includes": []
     },
@@ -385,24 +376,12 @@ TOOLSETS = {
         "includes": []
     },
 
-    "hermes-telegram": {
-        "description": "Telegram bot toolset - secure local-first core tools",
-        "tools": _HERMES_CORE_TOOLS,
-        "includes": []
-    },
-    
     "hermes-discord": {
         "description": "Discord bot toolset - secure local-first core tools plus Discord helpers",
         "tools": _HERMES_CORE_TOOLS + [
             "discord",
             "discord_admin",
         ],
-        "includes": []
-    },
-    
-    "hermes-whatsapp": {
-        "description": "WhatsApp bot toolset - secure local-first core tools",
-        "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
     
@@ -420,12 +399,6 @@ TOOLSETS = {
 
     "hermes-bluebubbles": {
         "description": "BlueBubbles iMessage bot toolset - Apple iMessage via local BlueBubbles server",
-        "tools": _HERMES_CORE_TOOLS,
-        "includes": []
-    },
-
-    "hermes-homeassistant": {
-        "description": "Home Assistant bot toolset - smart home event monitoring and control",
         "tools": _HERMES_CORE_TOOLS,
         "includes": []
     },
@@ -518,7 +491,7 @@ TOOLSETS = {
     "hermes-gateway": {
         "description": "Gateway toolset - union of all messaging platform tools",
         "tools": [],
-        "includes": ["hermes-telegram", "hermes-discord", "hermes-whatsapp", "hermes-slack", "hermes-signal", "hermes-bluebubbles", "hermes-homeassistant", "hermes-email", "hermes-sms", "hermes-mattermost", "hermes-matrix", "hermes-dingtalk", "hermes-feishu", "hermes-wecom", "hermes-wecom-callback", "hermes-weixin", "hermes-qqbot", "hermes-webhook", "hermes-yuanbao"]
+        "includes": ["hermes-discord", "hermes-slack", "hermes-signal", "hermes-bluebubbles", "hermes-email", "hermes-sms", "hermes-mattermost", "hermes-matrix", "hermes-dingtalk", "hermes-feishu", "hermes-wecom", "hermes-wecom-callback", "hermes-weixin", "hermes-qqbot", "hermes-webhook", "hermes-yuanbao"]
     }
 }
 

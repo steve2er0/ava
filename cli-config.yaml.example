@@ -422,7 +422,7 @@ memory:
 # =============================================================================
 # Session Reset Policy (Messaging Platforms)
 # =============================================================================
-# Controls when messaging sessions (Telegram, Discord, WhatsApp, Slack) are
+# Controls when messaging sessions (Discord, Slack, Signal, etc.) are
 # automatically cleared. Without resets, conversation context grows indefinitely
 # which increases API costs with every message.
 #
@@ -457,8 +457,7 @@ group_sessions_per_user: true
 # ─────────────────────────────────────────────────────────────────────────────
 # Stream tokens to messaging platforms in real-time. The bot sends a message
 # on first token, then progressively edits it as more tokens arrive.
-# Disabled by default — enable to try the streaming UX on Telegram/Discord/Slack.
-# For Telegram, partial edits are sent as plain text and only the final edit uses MarkdownV2.
+# Disabled by default — enable to try the streaming UX on supported platforms.
 streaming:
   enabled: false
   # transport: edit           # "edit" = progressive editMessageText
@@ -557,21 +556,17 @@ agent:
 # If a platform isn't listed here, its built-in default is used.
 #
 # You can use EITHER:
-#   - A preset like "hermes-cli" or "hermes-telegram" (curated tool set)
+#   - A preset like "hermes-cli" or "hermes-discord" (curated tool set)
 #   - A list of individual toolsets to compose your own (see list below)
 #
-# Supported platform keys: cli, telegram, discord, whatsapp, slack, qqbot, teams, google_chat
+# Supported platform keys: cli, discord, slack, qqbot, teams, google_chat
 #
 # Examples:
 #
 #   # Use presets (same as defaults):
 #   platform_toolsets:
 #     cli: [hermes-cli, engineering]
-#     telegram: [hermes-telegram]
-#
-#   # Custom: give Telegram only web + terminal + file + planning:
-#   platform_toolsets:
-#     telegram: [web, terminal, file, todo]
+#     discord: [hermes-discord]
 #
 #   # Custom: CLI with selected opt-in network/tool integrations:
 #   platform_toolsets:
@@ -584,24 +579,18 @@ agent:
 # If not set, defaults are:
 #   cli:           hermes-cli + engineering
 #                  (secure local-first tools plus approved engineering tools)
-#   telegram:      hermes-telegram       (same secure local-first core)
 #   discord:       hermes-discord        (core + Discord helpers)
-#   whatsapp:      hermes-whatsapp       (same secure local-first core)
 #   slack:         hermes-slack          (same secure local-first core)
 #   signal:        hermes-signal         (same secure local-first core)
-#   homeassistant: hermes-homeassistant  (same secure local-first core)
 #   qqbot:         hermes-qqbot          (same secure local-first core)
 #   teams:         hermes-teams          (same secure local-first core)
 #   google_chat:   hermes-google_chat    (same secure local-first core)
 #
 platform_toolsets:
   cli: [hermes-cli, engineering]
-  telegram: [hermes-telegram]
   discord: [hermes-discord]
-  whatsapp: [hermes-whatsapp]
   slack: [hermes-slack]
   signal: [hermes-signal]
-  homeassistant: [hermes-homeassistant]
   qqbot: [hermes-qqbot]
   yuanbao: [hermes-yuanbao]
   teams: [hermes-teams]
@@ -614,14 +603,9 @@ platform_toolsets:
 # Platform-specific knobs live under `extra`.
 #
 # platforms:
-#   telegram:
-#     reply_to_mode: "first"  # off | first | all
-#     # guest_mode lets explicit @mentions from non-allowlisted groups through.
-#     # Default false; ordinary messages, replies, and regex wake words stay blocked.
-#     guest_mode: false
-#     # allowed_chats: ["-1001234567890"]
+#   slack:
 #     extra:
-#       disable_link_previews: false  # Set true to suppress Telegram URL previews in bot messages
+#       channel_policy: "mention"
 #
 # Discord-specific settings (config.yaml top-level, not under platforms:):
 #
@@ -660,9 +644,7 @@ platform_toolsets:
 #
 # PRESETS (curated bundles):
 #   hermes-cli       - secure local-first coding/files/memory/session tools
-#   hermes-telegram  - same secure local-first core for Telegram
 #   hermes-discord   - secure local-first core plus Discord helpers
-#   hermes-whatsapp  - same secure local-first core
 #   hermes-slack     - same secure local-first core
 #   Add web, browser, vision, image_gen, tts, cronjob, send_message, etc.
 #   explicitly when you want those networked integrations available.
@@ -853,28 +835,18 @@ display:
   # Toggle at runtime with /verbose in the CLI
   tool_progress: all
 
-  # Per-platform defaults can be quieter than the global setting. Telegram
-  # tunes for mobile: tool_progress and busy_ack_detail default off (no
-  # per-tool breadcrumb stream, no "iteration 21/60" debug detail in busy
-  # acks or heartbeats), but interim_assistant_messages and
-  # long_running_notifications STAY ON so the user has real signal between
-  # turn start and final answer (mid-turn assistant commentary + a single
-  # edit-in-place "⏳ Working — N min" heartbeat). Override under
-  # display.platforms.telegram.
-
   # Auto-cleanup of temporary progress bubbles after the final response lands.
-  # On platforms that support message deletion (currently Telegram), this
-  # removes the tool-progress bubble, "⏳ Still working..." notices, and
-  # context-pressure status messages once the final reply has been delivered —
-  # keeping long-running turns visible live, then tidy afterward. Failed runs
-  # leave the bubbles in place as breadcrumbs. Off by default.
-  # Per-platform override: display.platforms.telegram.cleanup_progress
+  # On platforms that support message deletion, this removes the tool-progress
+  # bubble, "⏳ Still working..." notices, and context-pressure status messages
+  # once the final reply has been delivered. Failed runs leave the bubbles in
+  # place as breadcrumbs. Off by default.
+  # Per-platform override: display.platforms.slack.cleanup_progress
   #   true:  Delete tracked progress/status bubbles on successful turn
   #   false: Leave everything in place (default)
   # Example:
   #   display:
   #     platforms:
-  #       telegram:
+  #       slack:
   #         cleanup_progress: true
   cleanup_progress: false
 
@@ -890,14 +862,13 @@ display:
   # notifications even if agent.gateway_notify_interval is non-zero. The
   # heartbeat edits a single message in place (where the adapter supports
   # editing) instead of posting a new bubble each interval.
-  # Default: true everywhere, including Telegram (silent agents are worse
-  # than a single edit-in-place heartbeat).
+  # Default: true everywhere (silent agents are worse than a single heartbeat).
   long_running_notifications: true
 
   # Include detailed iteration/tool/status context in busy acknowledgments
   # and long-running heartbeats. When true, busy acks show "iteration 21/60,
   # terminal, 10 min" and the heartbeat shows "⏳ Working — 12 min,
-  # iteration 21/60, terminal". When false (Telegram default), both stay
+  # iteration 21/60, terminal". When false, both stay
   # terse: "Interrupting current task" and "⏳ Working — 12 min, terminal".
   busy_ack_detail: true
 
@@ -914,7 +885,7 @@ display:
 
   # Background process notifications (gateway/messaging only).
   # Controls how chatty the process watcher is when you use
-  # terminal(background=true, notify_on_complete=true) from Telegram/Discord/etc.
+  # terminal(background=true, notify_on_complete=true) from Discord/Slack/etc.
   #   off:     No watcher messages at all
   #   result:  Only the final completion message
   #   error:   Only the final message when exit code != 0

@@ -17,6 +17,7 @@ from utils import atomic_json_write
 logger = logging.getLogger(__name__)
 
 DIRECTORY_PATH = get_hermes_home() / "channel_directory.json"
+_REMOVED_AVA_MESSAGE_TARGETS = frozenset({"telegram", "whatsapp", "homeassistant"})
 
 
 def _normalize_channel_query(value: str) -> str:
@@ -79,7 +80,7 @@ async def build_channel_directory(adapters: Dict[Any, Any]) -> Dict[str, Any]:
     # Platforms that don't support direct channel enumeration get session-based
     # discovery automatically.  Skip infrastructure entries that aren't messaging
     # platforms — everything else falls through to _build_from_sessions().
-    _SKIP_SESSION_DISCOVERY = frozenset({"local", "api_server", "webhook"})
+    _SKIP_SESSION_DISCOVERY = frozenset({"local", "api_server", "webhook"}) | _REMOVED_AVA_MESSAGE_TARGETS
     for plat in Platform:
         plat_name = plat.value
         if plat_name in _SKIP_SESSION_DISCOVERY or plat_name in platforms:
@@ -257,6 +258,8 @@ def load_directory() -> Dict[str, Any]:
 
 def lookup_channel_type(platform_name: str, chat_id: str) -> Optional[str]:
     """Return the channel ``type`` string (e.g. ``"channel"``, ``"forum"``) for *chat_id*, or *None* if unknown."""
+    if platform_name in _REMOVED_AVA_MESSAGE_TARGETS:
+        return None
     directory = load_directory()
     for ch in directory.get("platforms", {}).get(platform_name, []):
         if ch.get("id") == chat_id:
@@ -270,9 +273,10 @@ def resolve_channel_name(platform_name: str, name: str) -> Optional[str]:
 
     Matching strategy (case-insensitive, first match wins):
     - Discord: "bot-home", "#bot-home", "GuildName/bot-home"
-    - Telegram: display name or group name
     - Slack: "engineering", "#engineering"
     """
+    if platform_name in _REMOVED_AVA_MESSAGE_TARGETS:
+        return None
     directory = load_directory()
     channels = directory.get("platforms", {}).get(platform_name, [])
     if not channels:
@@ -314,7 +318,11 @@ def resolve_channel_name(platform_name: str, name: str) -> Optional[str]:
 def format_directory_for_display() -> str:
     """Format the channel directory as a human-readable list for the model."""
     directory = load_directory()
-    platforms = directory.get("platforms", {})
+    platforms = {
+        name: channels
+        for name, channels in directory.get("platforms", {}).items()
+        if name not in _REMOVED_AVA_MESSAGE_TARGETS
+    }
 
     if not any(platforms.values()):
         return "No messaging platforms connected or no channels discovered yet."
@@ -322,6 +330,8 @@ def format_directory_for_display() -> str:
     lines = ["Available messaging targets:\n"]
 
     for plat_name, channels in sorted(platforms.items()):
+        if plat_name in _REMOVED_AVA_MESSAGE_TARGETS:
+            continue
         if not channels:
             continue
 
@@ -352,6 +362,6 @@ def format_directory_for_display() -> str:
             lines.append("")
 
     lines.append('Use these as the "target" parameter when sending.')
-    lines.append('Bare platform name (e.g. "telegram") sends to home channel.')
+    lines.append('Bare platform name (e.g. "slack") sends to home channel.')
 
     return "\n".join(lines)

@@ -120,11 +120,11 @@ def _run_async_immediately(coro):
 
 
 def _make_config():
-    telegram_cfg = SimpleNamespace(enabled=True, token="***", extra={})
+    slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
     return SimpleNamespace(
-        platforms={Platform.TELEGRAM: telegram_cfg},
+        platforms={Platform.SLACK: slack_cfg},
         get_home_channel=lambda _platform: None,
-    ), telegram_cfg
+    ), slack_cfg
 
 
 def _install_telegram_mock(monkeypatch, bot):
@@ -164,15 +164,15 @@ def _ensure_slack_mock(monkeypatch):
 
 class TestSendMessageTool:
     def test_cron_duplicate_target_is_skipped_and_explained(self):
-        home = SimpleNamespace(chat_id="-1001")
-        config, _telegram_cfg = _make_config()
+        home = SimpleNamespace(chat_id="C123456789")
+        config, _slack_cfg = _make_config()
         config.get_home_channel = lambda _platform: home
 
         with patch.dict(
             os.environ,
             {
-                "HERMES_CRON_AUTO_DELIVER_PLATFORM": "telegram",
-                "HERMES_CRON_AUTO_DELIVER_CHAT_ID": "-1001",
+                "HERMES_CRON_AUTO_DELIVER_PLATFORM": "slack",
+                "HERMES_CRON_AUTO_DELIVER_CHAT_ID": "C123456789",
             },
             clear=False,
         ), \
@@ -185,7 +185,7 @@ class TestSendMessageTool:
                 send_message_tool(
                     {
                         "action": "send",
-                        "target": "telegram",
+                        "target": "slack",
                         "message": "hello",
                     }
                 )
@@ -198,74 +198,19 @@ class TestSendMessageTool:
         send_mock.assert_not_awaited()
         mirror_mock.assert_not_called()
 
-    def test_resolved_telegram_topic_name_preserves_thread_id(self):
-        config, telegram_cfg = _make_config()
-
-        with patch("gateway.config.load_gateway_config", return_value=config), \
-             patch("tools.interrupt.is_interrupted", return_value=False), \
-             patch("gateway.channel_directory.resolve_channel_name", return_value="-1001:17585"), \
-             patch("model_tools._run_async", side_effect=_run_async_immediately), \
-             patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})) as send_mock, \
-             patch("gateway.mirror.mirror_to_session", return_value=True):
-            result = json.loads(
-                send_message_tool(
-                    {
-                        "action": "send",
-                        "target": "telegram:Coaching Chat / topic 17585",
-                        "message": "hello",
-                    }
-                )
+    @pytest.mark.parametrize("target", ["telegram", "whatsapp:+15551234567", "homeassistant:notify"])
+    def test_removed_platform_targets_are_blocked(self, target):
+        result = json.loads(
+            send_message_tool(
+                {
+                    "action": "send",
+                    "target": target,
+                    "message": "hello",
+                }
             )
-
-        assert result["success"] is True
-        send_mock.assert_awaited_once_with(
-            Platform.TELEGRAM,
-            telegram_cfg,
-            "-1001",
-            "hello",
-            thread_id="17585",
-            media_files=[],
-            force_document=False,
         )
 
-    def test_display_label_target_resolves_via_channel_directory(self, tmp_path):
-        config, telegram_cfg = _make_config()
-        cache_file = tmp_path / "channel_directory.json"
-        cache_file.write_text(json.dumps({
-            "updated_at": "2026-01-01T00:00:00",
-            "platforms": {
-                "telegram": [
-                    {"id": "-1001:17585", "name": "Coaching Chat / topic 17585", "type": "group"}
-                ]
-            },
-        }))
-
-        with patch("gateway.channel_directory.DIRECTORY_PATH", cache_file), \
-             patch("gateway.config.load_gateway_config", return_value=config), \
-             patch("tools.interrupt.is_interrupted", return_value=False), \
-             patch("model_tools._run_async", side_effect=_run_async_immediately), \
-             patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})) as send_mock, \
-             patch("gateway.mirror.mirror_to_session", return_value=True):
-            result = json.loads(
-                send_message_tool(
-                    {
-                        "action": "send",
-                        "target": "telegram:Coaching Chat / topic 17585 (group)",
-                        "message": "hello",
-                    }
-                )
-            )
-
-        assert result["success"] is True
-        send_mock.assert_awaited_once_with(
-            Platform.TELEGRAM,
-            telegram_cfg,
-            "-1001",
-            "hello",
-            thread_id="17585",
-            media_files=[],
-            force_document=False,
-        )
+        assert "not available in AVA" in result["error"]
 
     def test_resolved_slack_thread_name_preserves_thread_id(self):
         slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
@@ -343,23 +288,23 @@ class TestSendMessageTool:
         )
 
     def test_mirror_receives_current_session_user_id(self):
-        config, _telegram_cfg = _make_config()
+        config, _slack_cfg = _make_config()
 
         with patch("gateway.config.load_gateway_config", return_value=config), \
              patch("tools.interrupt.is_interrupted", return_value=False), \
              patch("model_tools._run_async", side_effect=_run_async_immediately), \
              patch("tools.send_message_tool._send_to_platform", new=AsyncMock(return_value={"success": True})), \
              patch("gateway.session_context.get_session_env") as get_session_env_mock, \
-             patch("gateway.mirror.mirror_to_session", return_value=True) as mirror_mock:
+            patch("gateway.mirror.mirror_to_session", return_value=True) as mirror_mock:
             get_session_env_mock.side_effect = lambda name, default="": {
-                "HERMES_SESSION_PLATFORM": "telegram",
+                "HERMES_SESSION_PLATFORM": "cli",
                 "HERMES_SESSION_USER_ID": "user-123",
             }.get(name, default)
             result = json.loads(
                 send_message_tool(
                     {
                         "action": "send",
-                        "target": "telegram:12345",
+                        "target": "slack:C123456789",
                         "message": "hello",
                     }
                 )
@@ -367,10 +312,10 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         mirror_mock.assert_called_once_with(
-            "telegram",
-            "12345",
+            "slack",
+            "C123456789",
             "hello",
-            source_label="telegram",
+            source_label="cli",
             thread_id=None,
             user_id="user-123",
         )
@@ -383,7 +328,7 @@ class TestSendMessageTool:
         # in 2026-05; this test pins strict on explicitly.)
         monkeypatch.setenv("HERMES_MEDIA_DELIVERY_STRICT", "1")
         monkeypatch.setenv("HERMES_MEDIA_TRUST_RECENT_FILES", "0")
-        config, telegram_cfg = _make_config()
+        config, slack_cfg = _make_config()
         secret = tmp_path / "secret.pdf"
         secret.write_bytes(b"%PDF secret")
 
@@ -396,7 +341,7 @@ class TestSendMessageTool:
                 send_message_tool(
                     {
                         "action": "send",
-                        "target": "telegram:12345",
+                        "target": "slack:C123456789",
                         "message": f"hello\nMEDIA:{secret}",
                     }
                 )
@@ -404,9 +349,9 @@ class TestSendMessageTool:
 
         assert result["success"] is True
         send_mock.assert_awaited_once_with(
-            Platform.TELEGRAM,
-            telegram_cfg,
-            "12345",
+            Platform.SLACK,
+            slack_cfg,
+            "C123456789",
             "hello",
             thread_id=None,
             media_files=[],
@@ -414,7 +359,7 @@ class TestSendMessageTool:
         )
 
     def test_top_level_send_failure_redacts_query_token(self):
-        config, _telegram_cfg = _make_config()
+        config, _slack_cfg = _make_config()
         leaked = "very-secret-query-token-123456"
 
         def _raise_and_close(coro):
@@ -430,7 +375,7 @@ class TestSendMessageTool:
                 send_message_tool(
                     {
                         "action": "send",
-                        "target": "telegram:-1001",
+                        "target": "slack:C123456789",
                         "message": "hello",
                     }
                 )
@@ -803,25 +748,6 @@ class TestSendToPlatformChunking:
 # ---------------------------------------------------------------------------
 
 
-class TestSendToPlatformWhatsapp:
-    def test_whatsapp_routes_via_local_bridge_sender(self):
-        chat_id = "test-user@lid"
-        async_mock = AsyncMock(return_value={"success": True, "platform": "whatsapp", "chat_id": chat_id, "message_id": "abc123"})
-
-        with patch("tools.send_message_tool._send_whatsapp", async_mock):
-            result = asyncio.run(
-                _send_to_platform(
-                    Platform.WHATSAPP,
-                    SimpleNamespace(enabled=True, token=None, extra={"bridge_port": 3000}),
-                    chat_id,
-                    "hello from hermes",
-                )
-            )
-
-        assert result["success"] is True
-        async_mock.assert_awaited_once_with({"bridge_port": 3000}, chat_id, "hello from hermes")
-
-
 class TestSendTelegramHtmlDetection:
     """Verify that messages containing HTML tags are sent with parse_mode=HTML
     and that plain / markdown messages use MarkdownV2."""
@@ -1151,10 +1077,10 @@ class TestParseTargetRefE164:
         assert chat_id == "+15551234567"
         assert is_explicit is True
 
-    def test_whatsapp_e164_is_explicit(self):
+    def test_whatsapp_e164_is_not_supported(self):
         chat_id, _, is_explicit = _parse_target_ref("whatsapp", "+15551234567")
-        assert chat_id == "+15551234567"
-        assert is_explicit is True
+        assert chat_id is None
+        assert is_explicit is False
 
     def test_signal_bare_digits_still_work(self):
         """Bare digit strings continue to match the generic numeric branch."""
@@ -1285,9 +1211,9 @@ class TestEmailHomeChannelErrorHint:
         assert "EMAIL_HOME_CHANNEL" not in result["error"]
 
     def test_non_email_platform_keeps_generic_home_channel_hint(self):
-        telegram_cfg = SimpleNamespace(enabled=True, token="***", extra={})
+        slack_cfg = SimpleNamespace(enabled=True, token="xoxb-test", extra={})
         config = SimpleNamespace(
-            platforms={Platform.TELEGRAM: telegram_cfg},
+            platforms={Platform.SLACK: slack_cfg},
             get_home_channel=lambda _platform: None,
         )
         with patch("gateway.config.load_gateway_config", return_value=config), \
@@ -1296,12 +1222,12 @@ class TestEmailHomeChannelErrorHint:
                 send_message_tool(
                     {
                         "action": "send",
-                        "target": "telegram",
+                        "target": "slack",
                         "message": "hi",
                     }
                 )
             )
-        assert "TELEGRAM_HOME_CHANNEL" in result["error"]
+        assert "SLACK_HOME_CHANNEL" in result["error"]
 
 
 class TestSendDiscordThreadId:
