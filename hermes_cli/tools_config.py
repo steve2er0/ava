@@ -74,6 +74,7 @@ CONFIGURABLE_TOOLSETS = [
     ("session_search",  "🔎 Session Search",            "search past conversations"),
     ("clarify",         "❓ Clarifying Questions",      "clarify"),
     ("engineering",     "🛠️  Engineering Tools",        "approved NASTRAN, PSD, SRS, FDS, and HDF5 tools"),
+    ("fem_explorer",    "🧭 FEM Explorer",              "desktop BDF geometry and OP2 mode visualization"),
     ("delegation",      "👥 Task Delegation",           "delegate_task"),
     ("cronjob",         "⏰ Cron Jobs",                 "create/list/update/pause/resume/run, with optional attached skills"),
     ("messaging",       "📨 Cross-Platform Messaging",  "send_message"),

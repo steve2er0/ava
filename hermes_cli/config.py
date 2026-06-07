@@ -747,9 +747,9 @@ DEFAULT_CONFIG = {
     "providers": {},
     "fallback_providers": [],
     "credential_pool_strategies": {},
-    "toolsets": ["hermes-cli", "engineering"],
+    "toolsets": ["hermes-cli", "engineering", "fem_explorer"],
     "platform_toolsets": {
-        "cli": ["hermes-cli", "engineering"],
+        "cli": ["hermes-cli", "engineering", "fem_explorer"],
     },
     "agent": {
         "max_turns": 90,

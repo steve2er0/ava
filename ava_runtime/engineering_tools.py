@@ -236,10 +236,14 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
 }
 
 
-def list_approved_tools() -> list[dict]:
+def list_approved_tools(*, include_visualization: bool = True) -> list[dict]:
     """Return the approved engineering tool catalog as JSON-safe dicts."""
 
-    return [asdict(APPROVED_TOOLS[name]) for name in sorted(APPROVED_TOOLS)]
+    return [
+        asdict(APPROVED_TOOLS[name])
+        for name in sorted(APPROVED_TOOLS)
+        if include_visualization or APPROVED_TOOLS[name].category != "visualization"
+    ]
 
 
 def _artifact_dir(params: Mapping[str, Any], tool_name: str) -> Path:

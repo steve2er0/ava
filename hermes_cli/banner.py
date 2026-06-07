@@ -84,7 +84,7 @@ def get_available_skills() -> Dict[str, List[str]]:
         return {}
 
     grouped: Dict[str, List[str]] = {}
-    for item in list_approved_tools():
+    for item in list_approved_tools(include_visualization=False):
         grouped.setdefault(str(item["category"]), []).append(str(item["name"]))
     return {category: sorted(names) for category, names in sorted(grouped.items())}
 

@@ -41,9 +41,9 @@ ava update       # Update to the latest fork version
 ava doctor       # Diagnose setup issues
 ```
 
-## AVA Engineering Tools
+## AVA Engineering And FEM Tools
 
-AVA exposes engineering work through the approved `engineering` toolset:
+AVA exposes engineering analysis work through the approved `engineering` toolset:
 
 - `engineering_tool_catalog`
 - `engineering_tool_run`
@@ -52,6 +52,13 @@ The catalog includes controlled NASTRAN, modal, PSD, SRS, FDS, and HDF5 tools
 with risk level, default LLM exposure, summaries, and local artifact paths.
 Use `ava-tool catalog` from a development checkout to inspect the current
 approved list.
+
+FEM Explorer is exposed separately through the `fem_explorer` toolset:
+
+- `fem_explorer_open`
+
+Use it for BDF geometry visualization and explicit OP2 mode-shape viewing in
+the FEM Explorer desktop app.
 
 The supporting Python packages are `ava_runtime` and `ava_knowledge`.
 

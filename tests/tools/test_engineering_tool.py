@@ -116,3 +116,23 @@ def test_engineering_tool_run_adds_viewer_completion_guidance(monkeypatch, tmp_p
     assert payload["status"] == "ok"
     assert "already been launched" in payload["agent_guidance"]
     assert "Do not call terminal" in payload["agent_guidance"]
+
+
+def test_engineering_catalog_excludes_fem_explorer_viewers():
+    payload = json.loads(engineering_tool.engineering_tool_catalog_handler({}))
+    names = {item["name"] for item in payload["tools"]}
+
+    assert "bdf_3d_viewer_build" not in names
+    assert "op2_mode_shape_viewer_build" not in names
+    assert "nastran_model_check" in names
+
+
+def test_engineering_tool_schema_excludes_fem_explorer_viewers():
+    tool_names = set()
+    for entry in engineering_tool.registry.get_definitions({"engineering_tool_run"}, quiet=True):
+        enum = entry["function"]["parameters"]["properties"]["tool_name"]["enum"]
+        tool_names.update(enum)
+
+    assert "bdf_3d_viewer_build" not in tool_names
+    assert "op2_mode_shape_viewer_build" not in tool_names
+    assert "nastran_model_check" in tool_names

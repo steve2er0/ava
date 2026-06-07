@@ -158,6 +158,48 @@ def test_minimal_exposure_keeps_engineering_viewer_summary_visible(tmp_path, mon
     assert "summary" not in envelope
 
 
+def test_minimal_exposure_keeps_fem_explorer_summary_visible(tmp_path, monkeypatch):
+    clear_protected_outputs()
+    monkeypatch.setattr("tools.tool_result_storage.STORAGE_DIR", str(tmp_path))
+    result = json.dumps(
+        {
+            "tool": "fem_explorer_open",
+            "status": "ok",
+            "summary": {
+                "viewer_backend": "fem_explorer",
+                "window": "launched",
+                "launch_mode": "production",
+                "viewer_url": "http://127.0.0.1:62000",
+                "bdf_path": "/models/test.bdf",
+                "op2_path": None,
+                "auto_animate": False,
+            },
+            "artifacts": ["/models/viewer/fem_explorer_launch.json"],
+            "agent_guidance": "FEM Explorer has already been launched in a desktop window.",
+        }
+    )
+
+    envelope = json.loads(
+        protect_tool_result_for_model(
+            tool_name="fem_explorer_open",
+            result=result,
+            tool_call_id="call_fem_explorer",
+        )
+    )
+
+    assert envelope["status"] == "protected_output"
+    assert envelope["content_returned"] is False
+    assert envelope["fem_explorer_tool"] == "fem_explorer_open"
+    assert envelope["fem_explorer_status"] == "ok"
+    assert envelope["fem_explorer_summary"]["viewer_backend"] == "fem_explorer"
+    assert envelope["fem_explorer_summary"]["window"] == "launched"
+    assert envelope["fem_explorer_summary"]["viewer_url"] == "http://127.0.0.1:62000"
+    assert envelope["fem_explorer_summary"]["bdf_path"] == "/models/test.bdf"
+    assert envelope["fem_explorer_summary"]["op2_path"] is None
+    assert "already been launched" in envelope["fem_explorer_agent_guidance"]
+    assert "summary" not in envelope
+
+
 def test_protected_output_read_requires_approval(tmp_path):
     clear_protected_outputs()
     protected = tmp_path / "protected.txt"

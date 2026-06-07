@@ -214,6 +214,12 @@ TOOLSETS = {
         "tools": ["engineering_tool_catalog", "engineering_tool_run"],
         "includes": []
     },
+
+    "fem_explorer": {
+        "description": "FEM Explorer desktop visualization: open BDF geometry and explicit OP2 mode-shape viewers",
+        "tools": ["fem_explorer_open"],
+        "includes": []
+    },
     
     "delegation": {
         "description": "Spawn subagents with isolated context for complex subtasks",

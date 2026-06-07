@@ -302,16 +302,18 @@ def _safe_tool_metadata(tool_name: str, result: Any) -> dict[str, Any]:
             if key in data and not isinstance(data.get(key), (dict, list)):
                 metadata[key] = data[key]
     elif tool_name == "engineering_tool_run":
-        metadata.update(_safe_engineering_tool_metadata(data))
+        metadata.update(_safe_structured_tool_metadata(data, "engineering"))
+    elif tool_name == "fem_explorer_open":
+        metadata.update(_safe_structured_tool_metadata(data, "fem_explorer"))
     return metadata
 
 
-def _safe_engineering_tool_metadata(data: dict[str, Any]) -> dict[str, Any]:
+def _safe_structured_tool_metadata(data: dict[str, Any], prefix: str) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
     for source_key, dest_key in (
-        ("tool", "engineering_tool"),
-        ("status", "engineering_status"),
-        ("llm_exposure", "engineering_llm_exposure"),
+        ("tool", f"{prefix}_tool"),
+        ("status", f"{prefix}_status"),
+        ("llm_exposure", f"{prefix}_llm_exposure"),
     ):
         value = data.get(source_key)
         if _is_safe_metadata_scalar(value):
@@ -325,7 +327,7 @@ def _safe_engineering_tool_metadata(data: dict[str, Any]) -> dict[str, Any]:
             if _is_safe_metadata_scalar(value)
         }
         if safe_summary:
-            metadata["engineering_summary"] = safe_summary
+            metadata[f"{prefix}_summary"] = safe_summary
 
     artifacts = data.get("artifacts")
     if isinstance(artifacts, list):
@@ -335,11 +337,11 @@ def _safe_engineering_tool_metadata(data: dict[str, Any]) -> dict[str, Any]:
             if _is_safe_metadata_scalar(item)
         ][:10]
         if safe_artifacts:
-            metadata["engineering_artifacts"] = safe_artifacts
+            metadata[f"{prefix}_artifacts"] = safe_artifacts
 
     guidance = data.get("agent_guidance")
     if isinstance(guidance, str) and guidance.strip():
-        metadata["engineering_agent_guidance"] = guidance.strip()[:1000]
+        metadata[f"{prefix}_agent_guidance"] = guidance.strip()[:1000]
     return metadata
 
 

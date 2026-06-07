@@ -43,7 +43,7 @@ BDF_SUFFIXES = (".bdf", ".dat", ".nas", ".fem")
 def engineering_tool_catalog_handler(args, **kwargs) -> str:
     """Return approved engineering tool metadata."""
 
-    return tool_result({"tools": list_approved_tools()})
+    return tool_result({"tools": list_approved_tools(include_visualization=False)})
 
 
 def engineering_tool_run_handler(args, **kwargs) -> str:
@@ -196,8 +196,7 @@ registry.register(
         "description": (
             "Run one approved AVA engineering tool. Inputs are file paths or compact config values; "
             "raw engineering files are processed locally and only summaries/artifact paths are returned by default. "
-            "For FEM Explorer viewer tools, a successful result with window='launched' means the desktop window is already open; "
-            "do not run terminal/open/curl/pgrep afterward."
+            "Use fem_explorer_open, not engineering_tool_run, for requests to view or visualize FEM/BDF models."
         ),
         "parameters": {
             "type": "object",
@@ -209,8 +208,6 @@ registry.register(
                         "nastran_mass_summary",
                         "nastran_geometry_summary",
                         "op2_modal_summary",
-                        "bdf_3d_viewer_build",
-                        "op2_mode_shape_viewer_build",
                         "modal_frf_compute",
                         "sol103_deck_build",
                         "sol111_deck_build",

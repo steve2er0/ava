@@ -91,6 +91,19 @@ def test_configurable_toolsets_include_engineering():
     assert any(ts_key == "engineering" for ts_key, _, _ in CONFIGURABLE_TOOLSETS)
 
 
+def test_configurable_toolsets_include_fem_explorer():
+    assert any(ts_key == "fem_explorer" for ts_key, _, _ in CONFIGURABLE_TOOLSETS)
+
+
+def test_default_cli_config_enables_fem_explorer():
+    from hermes_cli.config import DEFAULT_CONFIG
+
+    enabled = _get_platform_tools(DEFAULT_CONFIG, "cli", include_default_mcp_servers=False)
+
+    assert "engineering" in enabled
+    assert "fem_explorer" in enabled
+
+
 def test_get_platform_tools_active_context_engine_is_enabled_for_explicit_config():
     config = {
         "context": {"engine": "lcm"},
