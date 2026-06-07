@@ -565,7 +565,7 @@ def _build_mode_manifest_from_op2(result_path: Path, modes_dir: Path, *, mode_li
     except ModuleNotFoundError as exc:
         raise RuntimeError(
             "OP2 mode-shape visualization requires pyNastran. "
-            "Install AVA with the engineering-viz extra to parse binary OP2 files."
+            "Reinstall AVA so its core engineering dependencies are present."
         ) from exc
 
     model = read_op2(
