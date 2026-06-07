@@ -56,7 +56,9 @@ def _write_demo_bdf(path: Path) -> Path:
                 "MAT1,2,1.0E7,,0.3,3.0",
                 "PSHELL,10,1,0.5",
                 "PSHELL,11,1,0.25",
+                "PBAR,20,2,0.1",
                 "CQUAD4,100,10,1,2,3,4",
+                "CBAR,101,20,2,6,0.,0.,1.",
                 "CONM2,200,2,,5.0",
                 "ENDDATA",
             ]
@@ -131,16 +133,16 @@ def test_bdf_geometry_check_and_mass_tools(tmp_path):
         {"bdf": str(bdf), "out": str(tmp_path / "geometry")},
     )
     assert geometry["summary"]["nodes"] == 6
-    assert geometry["summary"]["elements"] == 1
+    assert geometry["summary"]["elements"] == 2
     assert geometry["summary"]["bounding_box"]["span"] == [2.0, 1.0, 0.0]
 
     mass = run_engineering_tool(
         "nastran_mass_summary",
         {"bdf": str(bdf), "out": str(tmp_path / "mass")},
     )
-    assert math.isclose(mass["summary"]["estimated_structural_mass"], 1.0)
+    assert math.isclose(mass["summary"]["estimated_structural_mass"], 1.3)
     assert math.isclose(mass["summary"]["concentrated_mass"], 5.0)
-    assert math.isclose(mass["summary"]["total_mass"], 6.0)
+    assert math.isclose(mass["summary"]["total_mass"], 6.3)
 
 
 def test_bdf_and_op2_html_viewer_tools(tmp_path):
@@ -154,7 +156,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     assert bdf_viewer["llm_exposure"] == "summary_only"
     assert bdf_viewer["summary"]["viewer_url"].startswith("http://127.0.0.1:")
     assert bdf_viewer["summary"]["node_count"] == 6
-    assert bdf_viewer["summary"]["element_count"] == 1
+    assert bdf_viewer["summary"]["element_count"] == 2
     assert all(Path(path).exists() for path in bdf_viewer["artifacts"])
     assert "GRID,1" not in json.dumps(bdf_viewer["summary"])
 
@@ -162,9 +164,25 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     assert geometry_payload["schema"] == "ava_fem_geometry_v1"
     assert geometry_payload["stats"]["duplicate_node_group_count"] == 1
     assert geometry_payload["stats"]["free_edge_count"] == 4
+    assert geometry_payload["stats"]["line_element_count"] == 1
+    assert geometry_payload["stats"]["mass_element_count"] == 1
     assert geometry_payload["elements"][0]["node_ids"] == [1, 2, 3, 4]
+    assert {element["type"] for element in geometry_payload["elements"]} == {"CQUAD4", "CBAR"}
+    assert {property_card["id"] for property_card in geometry_payload["properties"]} >= {10, 20}
+    assert {material["id"] for material in geometry_payload["materials"]} >= {1, 2}
+    assert geometry_payload["mass_elements"][0]["type"] == "CONM2"
     viewer_config = json.loads(Path(bdf_viewer["summary"]["viewer_config"]).read_text(encoding="utf-8"))
     assert viewer_config["geometry_url"] == "data/geometry.json"
+    viewer_html = Path(bdf_viewer["summary"]["index_html"]).read_text(encoding="utf-8")
+    viewer_js = (Path(bdf_viewer["summary"]["index_html"]).parent / "fem_viewer.js").read_text(encoding="utf-8")
+    assert 'id="model-tree"' in viewer_html
+    assert 'data-tree-expand="${escapeAttr(section)}"' in viewer_js
+    assert 'data-tree-section="${escapeAttr(section)}"' in viewer_js
+    assert 'data-tree-select="render-style"' in viewer_js
+    assert 'data-tree-select="color-mode"' in viewer_js
+    assert 'data-tree-toggle="${key}"' in viewer_js
+    assert 'data-tree-command="fit-model"' in viewer_js
+    assert "showMassElements" in viewer_js
 
     modal_export = _write_mode_shape_export(tmp_path / "modes.json")
     op2_viewer = run_engineering_tool(

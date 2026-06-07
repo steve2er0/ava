@@ -24,8 +24,17 @@
         <div class="stats" id="stats"></div>
       </header>
       <main class="viewer-shell">
+        <aside class="model-tree-panel" aria-label="Model tree">
+          <div class="panel-header">
+            <h2>Model Tree</h2>
+            <span id="visible-count">Loading</span>
+          </div>
+          <div class="model-tree" id="model-tree">
+            <p class="tree-empty">Loading model tree.</p>
+          </div>
+        </aside>
         <canvas id="viewer"></canvas>
-        <aside class="panel">
+        <aside class="mode-panel">
           <label class="field">
             <span>Mode</span>
             <select id="mode-select" disabled>
