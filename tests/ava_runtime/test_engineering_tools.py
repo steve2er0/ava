@@ -150,7 +150,12 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
 
     bdf_viewer = run_engineering_tool(
         "bdf_3d_viewer_build",
-        {"bdf": str(bdf), "out": str(tmp_path / "bdf_viewer"), "title": "Demo BDF"},
+        {
+            "bdf": str(bdf),
+            "out": str(tmp_path / "bdf_viewer"),
+            "title": "Demo BDF",
+            "viewer_backend": "static",
+        },
     )
     assert bdf_viewer["status"] == "ok"
     assert bdf_viewer["llm_exposure"] == "summary_only"
@@ -198,6 +203,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
             "op2": str(modal_export),
             "out": str(tmp_path / "op2_viewer"),
             "title": "Demo Modes",
+            "viewer_backend": "static",
         },
     )
     assert op2_viewer["status"] == "ok"
@@ -225,6 +231,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
             "bdf": str(bdf),
             "out": str(tmp_path / "discovered_op2_viewer"),
             "mode_number": 1,
+            "viewer_backend": "static",
         },
     )
     assert discovered["status"] == "ok"
@@ -241,6 +248,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
             "bdf": str(bdf),
             "out": str(tmp_path / "bdf_modal_viewer"),
             "first_mode": True,
+            "viewer_backend": "static",
         },
     )
     assert bdf_modal["status"] == "ok"
@@ -253,10 +261,58 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
             "bdf": str(bdf),
             "op2": str(mismatched_export),
             "out": str(tmp_path / "mismatched_viewer"),
+            "viewer_backend": "static",
         },
     )
     mismatched_manifest = json.loads(Path(mismatched["summary"]["op2_manifest_json"]).read_text(encoding="utf-8"))
     assert mismatched_manifest["modes"][0]["node_count"] == 5
+
+
+def test_op2_viewer_defaults_to_fem_explorer_launcher(tmp_path, monkeypatch):
+    import ava_runtime.engineering_tools as engineering_tools
+
+    bdf = _write_demo_bdf(tmp_path / "demo.bdf")
+    op2 = tmp_path / "demo.op2"
+    op2.write_bytes(b"op2")
+    captured = {}
+
+    def fake_launch_fem_explorer_viewer(bdf_arg, output_dir, **kwargs):
+        captured["bdf"] = bdf_arg
+        captured["output_dir"] = output_dir
+        captured.update(kwargs)
+        manifest = Path(output_dir) / "fem_explorer_launch.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text("{}", encoding="utf-8")
+        return {
+            "summary": {
+                "viewer_backend": "fem_explorer",
+                "frontend_url": "http://127.0.0.1:5173",
+                "launch_manifest": str(manifest),
+                "initial_mode": kwargs.get("initial_mode"),
+                "auto_animate": kwargs.get("auto_animate"),
+            },
+            "artifacts": (str(manifest),),
+        }
+
+    monkeypatch.setattr(engineering_tools, "launch_fem_explorer_viewer", fake_launch_fem_explorer_viewer)
+
+    result = run_engineering_tool(
+        "op2_mode_shape_viewer_build",
+        {
+            "bdf": str(bdf),
+            "op2": str(op2),
+            "out": str(tmp_path / "fem_explorer"),
+            "first_mode": True,
+        },
+    )
+
+    assert result["status"] == "ok"
+    assert result["summary"]["viewer_backend"] == "fem_explorer"
+    assert result["summary"]["viewer_url"] == "http://127.0.0.1:5173"
+    assert captured["bdf"] == str(bdf)
+    assert captured["op2"] == op2
+    assert captured["initial_mode"] == 1
+    assert captured["auto_animate"] is True
 
 
 def test_fem_viewer_tools_fail_for_missing_inputs(tmp_path):

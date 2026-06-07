@@ -25,6 +25,7 @@ from ava_runtime.parsers.pch_parser import pch_summary_dict, parse_pch_records, 
 from ava_runtime.solvers.deck_builder import build_sol103_deck_from_config, build_sol111_deck_from_config, write_deck
 from ava_runtime.solvers.f06_scan import scan_f06
 from ava_runtime.solvers.nastran_runner import NastranRunRequest, NastranRunner
+from ava_runtime.visualization.fem_explorer_launcher import launch_fem_explorer_viewer
 from ava_runtime.visualization.fem_viewer import build_bdf_3d_viewer, build_op2_mode_shape_viewer
 
 
@@ -102,34 +103,34 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
         name="bdf_3d_viewer_build",
         category="visualization",
         purpose=(
-            "Generate and serve a local HTML/Three.js 3D viewer for BDF geometry. "
+            "Open FEM Explorer in a new local desktop window for BDF geometry. "
             "If a modal OP2/JSON result is supplied or can be discovered beside the BDF, "
-            "the viewer loads mode shapes with animation and GIF export controls."
+            "the viewer loads mode shapes with animation and GIF export controls. "
+            "Use viewer_backend='static' for the lightweight static HTML fallback."
         ),
         risk_level="read_only",
         default_llm_exposure="summary_only",
         inputs=("bdf", "op2_optional", "mode_optional"),
-        outputs=("index.html", "viewer_config.json", "geometry.json", "viewer_url"),
+        outputs=("viewer_window", "viewer_url", "launch_manifest"),
     ),
     "op2_mode_shape_viewer_build": ApprovedTool(
         name="op2_mode_shape_viewer_build",
         category="visualization",
         purpose=(
-            "Generate and serve a local HTML/Three.js viewer for BDF geometry plus "
-            "OP2 or modal JSON mode shapes. "
+            "Open FEM Explorer in a new local desktop window for BDF geometry plus "
+            "referenced OP2 mode shapes. "
             "Use this when a user asks to view/animate a mode, including requests "
             "like 'view the first mode'; "
-            "the OP2 path is optional when a matching .op2 or modal JSON file sits beside the BDF."
+            "the OP2 path is optional when a matching .op2 file sits beside the BDF. "
+            "Use viewer_backend='static' for modal JSON exports."
         ),
         risk_level="derived_data",
         default_llm_exposure="summary_only",
         inputs=("bdf", "op2_optional", "mode_optional"),
         outputs=(
-            "index.html",
-            "viewer_config.json",
-            "geometry.json",
-            "manifest.json",
+            "viewer_window",
             "viewer_url",
+            "launch_manifest",
             "gif_export_button",
         ),
     ),
@@ -510,6 +511,44 @@ def _resolve_mode_result_for_viewer(params: Mapping[str, Any], *, required: bool
     return None
 
 
+def _viewer_backend(params: Mapping[str, Any]) -> str:
+    backend = str(params.get("viewer_backend") or params.get("backend") or "fem_explorer").strip().lower()
+    if backend in {"fem_explorer", "fem-explorer", "fem explorer", "electron", "desktop"}:
+        return "fem_explorer"
+    if backend in {"static", "ava_static", "html"}:
+        return "static"
+    raise ValueError("viewer_backend must be 'fem_explorer' or 'static'")
+
+
+def _run_fem_explorer_viewer(
+    params: Mapping[str, Any],
+    tool: ApprovedTool,
+    out: Path,
+    *,
+    mode_result: Path | None,
+    required_mode: bool,
+) -> ToolRunResult:
+    if required_mode and mode_result is None:
+        bdf = Path(str(params["bdf"]))
+        raise FileNotFoundError(f"No .op2 modal result was supplied or discovered beside {bdf}")
+
+    auto_animate = _optional_bool(
+        params.get("auto_animate"),
+        default=_optional_bool(params.get("animate"), default=mode_result is not None),
+    )
+    payload = launch_fem_explorer_viewer(
+        params["bdf"],
+        out,
+        op2=mode_result,
+        initial_mode=_initial_mode_from_params(params) or ("first" if mode_result is not None else None),
+        auto_animate=auto_animate,
+        fem_explorer_root=params.get("fem_explorer_root"),
+    )
+    summary = dict(payload["summary"])
+    summary["viewer_url"] = summary.get("frontend_url")
+    return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, summary, tuple(payload["artifacts"]))
+
+
 def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
     mode_result = (
@@ -517,6 +556,15 @@ def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> T
         if _mode_requested(params) or _mode_result_path_from_params(params)
         else None
     )
+    if _viewer_backend(params) == "fem_explorer":
+        return _run_fem_explorer_viewer(
+            params,
+            tool,
+            out,
+            mode_result=mode_result,
+            required_mode=False,
+        )
+
     if mode_result is not None:
         auto_animate = _optional_bool(
             params.get("auto_animate"),
@@ -545,6 +593,15 @@ def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> T
 def _run_op2_mode_shape_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
     mode_result = _resolve_mode_result_for_viewer(params, required=True)
+    if _viewer_backend(params) == "fem_explorer":
+        return _run_fem_explorer_viewer(
+            params,
+            tool,
+            out,
+            mode_result=mode_result,
+            required_mode=True,
+        )
+
     auto_animate = _optional_bool(
         params.get("auto_animate"),
         default=_optional_bool(params.get("animate"), default=True),
