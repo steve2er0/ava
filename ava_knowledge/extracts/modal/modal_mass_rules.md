@@ -1,5 +1,8 @@
 # Modal Mass Rules
 
+Status: draft_reference_pending
+Reference posture: Internal starter guidance only; do not cite as external authority until the placeholder reference is replaced with governing source records.
+
 This starter extract captures modal-mass concepts that commonly drive adequacy decisions in reduced-order dynamic models. It should be linked to ingested source records before release use.
 
 ## Scope
@@ -36,3 +39,7 @@ If the truncated modal basis is used to represent dynamic behavior beyond the hi
 - Keep convergence evidence separate from screening evidence.
 - Require the intended response metric before accepting modal truncation.
 - Flag cases where residual terms are omitted from a truncated model.
+
+## References
+
+- `REF-AVA-STARTER-SHOCK-MODAL-001`: placeholder for starter shock and modal screening guidance. Replace before approving these extracts for external theory citation.

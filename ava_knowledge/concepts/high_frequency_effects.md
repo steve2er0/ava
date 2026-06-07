@@ -1,5 +1,8 @@
 # High-Frequency Effects in Shock Response
 
+Status: draft_reference_pending
+Reference posture: Internal starter guidance only; do not cite as external authority until the placeholder reference is replaced with governing source records.
+
 This concept note explains why high-frequency structural content can remain important even after lower modes capture most effective mass.
 
 ## Core Idea
@@ -27,3 +30,7 @@ The analyst stops after the low-order modes satisfy a mass-based criterion, repo
 ## Use in AVA
 
 This concept supports shock rules that decide whether high-frequency modes must be retained, whether convergence evidence is mandatory, and how the agent should explain the limitation of mass-based adequacy checks.
+
+## References
+
+- `REF-AVA-STARTER-SHOCK-MODAL-001`: placeholder for starter shock and modal screening guidance. Replace before approving this concept for external theory citation.

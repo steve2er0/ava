@@ -1,6 +1,12 @@
 rule_set_id: shock_high_frequency_mode_screen
 version: 0.1.0
 status: starter
+knowledge_status: draft_reference_pending
+reference_posture: >
+  Internal starter screening logic only; do not cite as external authority
+  until source_refs point to governing source records.
+source_refs:
+  - REF-AVA-STARTER-SHOCK-MODAL-001
 owner: ava_knowledge
 intent: >
   Determine when a shock analysis must retain high-frequency modes beyond a
@@ -62,6 +68,8 @@ logic:
     rationale: >
       Short-duration shock can drive local response through higher modes that
       contribute little to global effective mass.
+    source_refs:
+      - REF-AVA-STARTER-SHOCK-MODAL-001
 
   - rule_id: SHOCK-HF-002
     title: Allow low-order screening only for converged global displacement checks
@@ -83,6 +91,8 @@ logic:
     rationale: >
       Global displacement is often controlled by lower modes, but the scope of
       this acceptance is intentionally narrow.
+    source_refs:
+      - REF-AVA-STARTER-SHOCK-MODAL-001
 
   - rule_id: SHOCK-HF-003
     title: Escalate when damping documentation is missing
@@ -101,6 +111,8 @@ logic:
     rationale: >
       Missing damping rationale or missing convergence evidence makes the shock
       adequacy decision non-reviewable.
+    source_refs:
+      - REF-AVA-STARTER-SHOCK-MODAL-001
 
 defaults:
   fail_safe_decision: engineering_review_required

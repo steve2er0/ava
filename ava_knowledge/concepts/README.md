@@ -17,3 +17,7 @@ This folder contains stable engineering concepts derived from one or more extrac
 ## How it fits into the AVA pipeline
 
 `concepts/` turns extracted statements into durable engineering understanding. These files help AVA explain its decisions and keep rules grounded in real physical behavior.
+
+## Reference Requirement
+
+Every concept file must include a `## References` section. Approved concepts must cite real source records from `../references/reference_index.json`; concepts that still rely on placeholders must be marked `draft_reference_pending` and treated as internal starter guidance.

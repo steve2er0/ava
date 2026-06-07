@@ -16,4 +16,12 @@ This directory is the controlled knowledge workspace for the Acoustic and Vibrat
 
 ## How it fits into the AVA pipeline
 
-AVA knowledge flows from `raw/` source intake to `processed/` normalized text, then into `extracts/` for rule-ready statements. `concepts/` stabilize engineering meaning, `rules/` encode deterministic logic, `skills/` apply that logic in workflows, `tests/` verify behavior, `../ava_core/validation/` gates approved engineering skills with golden cases and approval records, and `index/` keeps the system navigable.
+AVA knowledge flows from `raw/` source intake to `processed/` normalized text, then into `extracts/` for rule-ready statements. `concepts/` stabilize engineering meaning, `rules/` encode deterministic logic, `skills/` apply that logic in workflows, `tests/` verify behavior, `../ava_core/validation/` gates approved engineering skills with golden cases and approval records, `references/` controls citation IDs for theory and rule rationale, and `index/` keeps the system navigable.
+
+## Reference Policy
+
+Any artifact that states engineering theory, threshold logic, rule rationale, or acceptance guidance must cite reference IDs from `references/reference_index.json`.
+
+- Released or approved knowledge must use real source references.
+- Draft starter knowledge may use placeholder references only when it is clearly marked `draft_reference_pending`.
+- AVA should cite theory with the relevant reference IDs. If only placeholder references are available, AVA should describe the statement as internal starter guidance and avoid presenting it as external authority.

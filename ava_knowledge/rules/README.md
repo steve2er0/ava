@@ -17,3 +17,7 @@ This folder contains deterministic, executable engineering rules.
 ## How it fits into the AVA pipeline
 
 `rules/` is where engineering knowledge becomes operational. Rules consume structured inputs, make bounded decisions, and produce outputs that skills and tests can evaluate consistently.
+
+## Reference Requirement
+
+Rule files must carry `source_refs` at the rule-set level or on each rule. Any rule promoted to approved or released status must cite real, non-placeholder references for its thresholds and rationale.

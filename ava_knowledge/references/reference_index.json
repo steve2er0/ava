@@ -1,0 +1,322 @@
+{
+  "schema_version": "0.2.0",
+  "references": [
+    {
+      "id": "REF-AVA-STARTER-SHOCK-MODAL-001",
+      "title": "AVA starter shock and modal screening guidance placeholder",
+      "kind": "internal_placeholder",
+      "status": "draft_placeholder",
+      "citation": "Internal AVA starter knowledge placeholder; replace with governing source records before release use.",
+      "availability": "internal placeholder only",
+      "notes": "This placeholder marks uncited starter theory so AVA does not present it as externally sourced knowledge."
+    },
+    {
+      "id": "REF-ASTM-E90-2023",
+      "title": "ASTM E90-23, Standard Test Method for Laboratory Measurement of Airborne Sound Transmission Loss of Building Partitions and Elements",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ASTM International. ASTM E90-23, Standard Test Method for Laboratory Measurement of Airborne Sound Transmission Loss of Building Partitions and Elements.",
+      "source_url": "https://store.astm.org/e0090-23.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["airborne sound transmission loss", "building acoustics", "laboratory test method"],
+      "notes": "Use for identifying the governing ASTM method. Do not ingest or quote standard text unless the user provides licensed content."
+    },
+    {
+      "id": "REF-ISO-10140-2-2021",
+      "title": "ISO 10140-2:2021, Acoustics - Laboratory measurement of sound insulation of building elements - Part 2: Measurement of airborne sound insulation",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 10140-2:2021, Acoustics - Laboratory measurement of sound insulation of building elements - Part 2: Measurement of airborne sound insulation.",
+      "source_url": "https://www.iso.org/standard/79487.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["airborne sound insulation", "building acoustics", "laboratory test method"],
+      "notes": "Use as the ISO counterpart for airborne insulation laboratory measurement. ISO 10140 has multiple parts; Part 2 is the direct airborne measurement method."
+    },
+    {
+      "id": "REF-ISO-10140-5-2021",
+      "title": "ISO 10140-5:2021, Acoustics - Laboratory measurement of sound insulation of building elements - Part 5: Requirements for test facilities and equipment",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 10140-5:2021, Acoustics - Laboratory measurement of sound insulation of building elements - Part 5: Requirements for test facilities and equipment.",
+      "source_url": "https://www.iso.org/standard/79482.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["sound insulation test facilities", "building acoustics", "laboratory equipment"],
+      "notes": "Related to ISO 10140-2 because facility and equipment requirements control validity of measurement results."
+    },
+    {
+      "id": "REF-ISO-1996-1-2016",
+      "title": "ISO 1996-1:2016, Acoustics - Description, measurement and assessment of environmental noise - Part 1: Basic quantities and assessment procedures",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 1996-1:2016, Acoustics - Description, measurement and assessment of environmental noise - Part 1: Basic quantities and assessment procedures.",
+      "source_url": "https://www.iso.org/standard/59765.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["environmental noise", "rating level", "community noise assessment"],
+      "notes": "Use for environmental noise quantity and assessment terminology. Pair with ISO 1996-2 when measurement procedure detail is needed."
+    },
+    {
+      "id": "REF-ISO-1996-2-2017",
+      "title": "ISO 1996-2:2017, Acoustics - Description, measurement and assessment of environmental noise - Part 2: Determination of sound pressure levels",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 1996-2:2017, Acoustics - Description, measurement and assessment of environmental noise - Part 2: Determination of sound pressure levels.",
+      "source_url": "https://www.iso.org/standard/59766.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["environmental noise measurement", "sound pressure level determination"],
+      "notes": "Related measurement procedure standard for environmental-noise workflows."
+    },
+    {
+      "id": "REF-ISO-9613-2-2024",
+      "title": "ISO 9613-2:2024, Acoustics - Attenuation of sound during propagation outdoors - Part 2: Engineering method for the prediction of sound pressure levels outdoors",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 9613-2:2024, Acoustics - Attenuation of sound during propagation outdoors - Part 2: Engineering method for the prediction of sound pressure levels outdoors.",
+      "source_url": "https://www.iso.org/standard/74047.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["outdoor sound propagation", "environmental noise prediction", "downwind propagation"],
+      "notes": "Use as the current ISO outdoor propagation method reference. The 2024 edition supersedes the older 1996 edition."
+    },
+    {
+      "id": "REF-IEC-61260-1-2014",
+      "title": "IEC 61260-1:2014, Electroacoustics - Octave-band and fractional-octave-band filters - Part 1: Specifications",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "IEC 61260-1:2014, Electroacoustics - Octave-band and fractional-octave-band filters - Part 1: Specifications.",
+      "source_url": "https://webstore.iec.ch/en/publication/5063",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["octave bands", "fractional-octave filters", "acoustic measurements"],
+      "notes": "Use as the governing standard for octave and fractional-octave filter specifications."
+    },
+    {
+      "id": "REF-ISO-18431-4-2007",
+      "title": "ISO 18431-4:2007, Mechanical vibration and shock - Signal processing - Part 4: Shock-response spectrum analysis",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ISO 18431-4:2007, Mechanical vibration and shock - Signal processing - Part 4: Shock-response spectrum analysis.",
+      "source_url": "https://www.iso.org/fr/standard/35833.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["shock response spectrum", "digital filtering", "signal processing"],
+      "notes": "Use as the formal SRS signal-processing standard. Official metadata says this edition was confirmed in 2021."
+    },
+    {
+      "id": "REF-ASTM-E1049-2017",
+      "title": "ASTM E1049-85(2017), Standard Practices for Cycle Counting in Fatigue Analysis",
+      "kind": "standard",
+      "status": "metadata_only",
+      "citation": "ASTM International. ASTM E1049-85(2017), Standard Practices for Cycle Counting in Fatigue Analysis.",
+      "source_url": "https://store.astm.org/e1049-85r17.html",
+      "availability": "official metadata page; full standard is copyrighted/paywalled",
+      "domains": ["cycle counting", "rainflow counting", "fatigue analysis"],
+      "notes": "Useful companion reference for FDS/FDET workflows because time-domain damage calculations rely on cycle counting."
+    },
+    {
+      "id": "REF-BERANEK-VER-2006",
+      "title": "Noise and Vibration Control Engineering: Principles and Applications, Second Edition",
+      "kind": "book",
+      "status": "metadata_only",
+      "citation": "Ver, I. L., and Beranek, L. L., eds. Noise and Vibration Control Engineering: Principles and Applications, Second Edition. Wiley, 2006. DOI: 10.1002/9780470172568.",
+      "source_url": "https://onlinelibrary.wiley.com/doi/book/10.1002/9780470172568",
+      "availability": "official publisher metadata; book content is copyrighted/paywalled",
+      "domains": ["noise control", "vibration control", "acoustical quantities", "standards"],
+      "notes": "Use as a high-authority textbook citation after specific claims are checked against licensed text."
+    },
+    {
+      "id": "REF-CREMER-HECKL-PETERSSON-2005",
+      "title": "Structure-Borne Sound: Structural Vibrations and Sound Radiation at Audio Frequencies, Third Edition",
+      "kind": "book",
+      "status": "metadata_only",
+      "citation": "Cremer, L., Heckl, M., and Petersson, B. A. T. Structure-Borne Sound: Structural Vibrations and Sound Radiation at Audio Frequencies, Third Edition. Springer, 2005. DOI: 10.1007/b137728.",
+      "source_url": "https://link.springer.com/book/10.1007/b137728",
+      "availability": "official publisher metadata; book content is copyrighted/paywalled",
+      "domains": ["structure-borne sound", "damping", "mobility", "sound radiation"],
+      "notes": "Use as a high-authority structure-borne sound citation after specific claims are checked against licensed text."
+    },
+    {
+      "id": "REF-FAHY-GARDONIO-2007",
+      "title": "Sound and Structural Vibration: Radiation, Transmission and Response, Second Edition",
+      "kind": "book",
+      "status": "metadata_only",
+      "citation": "Fahy, F., and Gardonio, P. Sound and Structural Vibration: Radiation, Transmission and Response, Second Edition. Academic Press, 2007.",
+      "source_url": "https://eprints.soton.ac.uk/28479/",
+      "availability": "repository metadata page; record has no downloadable full text",
+      "domains": ["vibroacoustics", "sound radiation", "sound transmission", "fluid-structure interaction"],
+      "notes": "Use as a high-authority vibroacoustics citation after specific claims are checked against licensed text."
+    },
+    {
+      "id": "REF-BENDAT-PIERSOL-2010",
+      "title": "Random Data: Analysis and Measurement Procedures, Fourth Edition",
+      "kind": "book",
+      "status": "metadata_only",
+      "citation": "Bendat, J. S., and Piersol, A. G. Random Data: Analysis and Measurement Procedures, Fourth Edition. Wiley, 2010. DOI: 10.1002/9781118032428.",
+      "source_url": "https://onlinelibrary.wiley.com/doi/book/10.1002/9781118032428",
+      "availability": "official publisher metadata; book content is copyrighted/paywalled",
+      "domains": ["random data analysis", "PSD estimation", "spectral analysis", "nonstationary data"],
+      "notes": "Core theory reference for random vibration signal processing and spectral-estimation claims."
+    },
+    {
+      "id": "REF-MAEKAWA-1968",
+      "title": "Noise reduction by screens",
+      "kind": "journal_article",
+      "status": "metadata_only",
+      "citation": "Maekawa, Z. Noise reduction by screens. Applied Acoustics, 1(3), 157-173, 1968. DOI: 10.1016/0003-682X(68)90020-0.",
+      "source_url": "https://www.sciencedirect.com/science/article/pii/0003682X68900200",
+      "availability": "publisher abstract and metadata; full article access depends on subscription",
+      "domains": ["noise barriers", "screen diffraction", "insertion loss"],
+      "notes": "Use as a foundational noise-barrier citation. Do not reproduce proprietary charts or full text."
+    },
+    {
+      "id": "REF-HENDERSON-PIERSOL-1995",
+      "title": "Fatigue Damage Related Descriptor for Random Vibration Test Environments",
+      "kind": "journal_article",
+      "status": "bibliographic_record",
+      "citation": "Henderson, G. R., and Piersol, A. G. Fatigue Damage Related Descriptor for Random Vibration Test Environments. Sound and Vibration, 29(10), 20-24, 1995.",
+      "source_url": "https://jglobal.jst.go.jp/en/detail?JGLOBAL_ID=200902136946970361",
+      "availability": "bibliographic record; full article availability not confirmed",
+      "domains": ["random vibration", "damage potential spectrum", "fatigue damage"],
+      "notes": "Foundational damage-potential reference. Treat claims as citation candidates until article text is available."
+    },
+    {
+      "id": "REF-MCNEILL-2008",
+      "title": "Implementing the Fatigue Damage Spectrum and Fatigue Damage Equivalent Vibration Testing",
+      "kind": "conference_paper",
+      "status": "open_public",
+      "citation": "McNeill, S. I. Implementing the Fatigue Damage Spectrum and Fatigue Damage Equivalent Vibration Testing. 79th Shock and Vibration Symposium, Orlando, Florida, October 26-30, 2008.",
+      "source_url": "https://www.vibrationdata.com/tutorials2/FDS_FDET_McNeill_with_corrections.pdf",
+      "availability": "public PDF hosted by Vibrationdata",
+      "domains": ["fatigue damage spectrum", "fatigue damage equivalent testing", "random vibration"],
+      "notes": "High-priority ingestion candidate for FDS/FDET workflows. Verify any equations against the PDF before promoting rules."
+    },
+    {
+      "id": "REF-SMALLWOOD-1980",
+      "title": "Improved recursive formula for calculating shock response spectra",
+      "kind": "conference_paper",
+      "status": "bibliographic_record",
+      "citation": "Smallwood, D. O. Improved recursive formula for calculating shock response spectra. Sandia National Laboratories, SAND-80-1315C; CONF-801033-1, 1980.",
+      "source_url": "https://www.osti.gov/biblio/5181963",
+      "availability": "OSTI bibliographic record; digital full text not available from OSTI record",
+      "domains": ["shock response spectrum", "recursive filters", "ramp-invariant simulation"],
+      "notes": "Authoritative SRS algorithm reference. OSTI metadata states the key ramp-invariant improvement but does not provide full text."
+    },
+    {
+      "id": "REF-IRVINE-VRS-2009",
+      "title": "An Introduction to the Vibration Response Spectrum, Revision D",
+      "kind": "tutorial",
+      "status": "open_public",
+      "citation": "Irvine, T. An Introduction to the Vibration Response Spectrum, Revision D. Vibrationdata, June 16, 2009.",
+      "source_url": "https://www.vibrationdata.com/tutorials2/vrs.pdf",
+      "availability": "public PDF hosted by Vibrationdata",
+      "domains": ["vibration response spectrum", "random vibration", "PSD response"],
+      "notes": "Useful implementation/tutorial source. Treat as supporting guidance rather than governing standard."
+    },
+    {
+      "id": "REF-IRVINE-SRS-2023",
+      "title": "An Introduction to Shock and Vibration Response Spectra, Revision H",
+      "kind": "tutorial",
+      "status": "open_public",
+      "citation": "Irvine, T. An Introduction to Shock and Vibration Response Spectra, Revision H. Vibrationdata, 2023.",
+      "source_url": "https://www.researchgate.net/publication/375954299_An_Introduction_to_Shock_and_Vibration_Response_Spectra_Rev_H",
+      "availability": "public research profile record and PDF availability reported by ResearchGate",
+      "domains": ["shock response spectrum", "vibration response spectrum", "structural dynamics"],
+      "notes": "Useful broad tutorial source. Prefer ISO 18431-4 for formal SRS calculation requirements."
+    },
+    {
+      "id": "REF-MIL-STD-810G-METHOD-517-2008",
+      "title": "MIL-STD-810G Method 517.1, Pyroshock",
+      "kind": "military_standard_method",
+      "status": "public_standard_copy",
+      "citation": "U.S. Department of Defense. MIL-STD-810G Method 517.1, Pyroshock, 2008.",
+      "source_url": "https://www.vibrationdata.com/tutorials_alt/MIL810G_pyroshock.pdf",
+      "availability": "public method PDF copy; verify current official status through ASSIST/DLA when contractual compliance matters",
+      "domains": ["pyroshock", "shock testing", "environmental test tailoring"],
+      "notes": "Use for historical G-revision Method 517 context. Current programs may require MIL-STD-810H or contract-specific tailoring."
+    },
+    {
+      "id": "REF-MIL-STD-810H-METHOD-517-2019",
+      "title": "MIL-STD-810H Method 517.3, Pyroshock",
+      "kind": "military_standard_method",
+      "status": "public_standard_copy",
+      "citation": "U.S. Department of Defense. MIL-STD-810H Method 517.3, Pyroshock, 2019.",
+      "source_url": "https://cvgstrategy.com/wp-content/uploads/2019/08/MIL-STD-810H-Method-517.3-Pyroshock.pdf",
+      "availability": "public method PDF copy; verify current official status through ASSIST/DLA when contractual compliance matters",
+      "domains": ["pyroshock", "data validation", "shock testing"],
+      "notes": "Related current-revision method for pyroshock testing and contaminated data checks."
+    },
+    {
+      "id": "REF-NASA-STD-7003A-2011",
+      "title": "NASA-STD-7003A, Pyroshock Test Criteria",
+      "kind": "technical_standard",
+      "status": "open_public",
+      "citation": "NASA-STD-7003A, Pyroshock Test Criteria. NASA Technical Standard, December 20, 2011.",
+      "source_url": "https://mechanical-engineering.gsfc.nasa.gov/NASA-STD-7003A%20Pyroshock%20Standards.pdf",
+      "availability": "public PDF hosted by NASA GSFC",
+      "domains": ["pyroshock test criteria", "maximum expected flight environment", "test margins"],
+      "notes": "High-priority ingestion candidate for NASA pyroshock criteria. NASA material is public-release but verify whether a program invokes a newer revision."
+    },
+    {
+      "id": "REF-NASA-HDBK-7005-2001",
+      "title": "NASA-HDBK-7005, Dynamic Environmental Criteria",
+      "kind": "technical_handbook",
+      "status": "open_public",
+      "citation": "NASA-HDBK-7005, Dynamic Environmental Criteria. NASA Technical Handbook, March 13, 2001.",
+      "source_url": "https://www.vibrationdata.com/tutorials/NASA7005.pdf",
+      "availability": "public PDF copy; NASA standards pages also reference the handbook",
+      "domains": ["dynamic environments", "launch vehicle vibration", "acoustics", "shock"],
+      "notes": "High-priority ingestion candidate for aerospace dynamic-environment terminology and criteria development."
+    },
+    {
+      "id": "REF-NASA-TM-2009-215902",
+      "title": "Using the Saturn V and Titan III Vibroacoustic Databanks for Random Vibration Criteria Development",
+      "kind": "technical_memorandum",
+      "status": "open_public",
+      "citation": "Ferebee, R. C. Using the Saturn V and Titan III Vibroacoustic Databanks for Random Vibration Criteria Development. NASA/TM-2009-215902, July 2009.",
+      "source_url": "https://ntrs.nasa.gov/citations/20100042567",
+      "availability": "public NTRS record and PDF download",
+      "domains": ["vibroacoustic databanks", "random vibration criteria", "launch vehicle environments"],
+      "notes": "High-priority ingestion candidate for vibroacoustic databank and random vibration criteria development workflows."
+    },
+    {
+      "id": "REF-NASA-TP-1998-1982",
+      "title": "Application of a computerized vibroacoustic data bank for random vibration criteria development",
+      "kind": "technical_publication",
+      "status": "open_public",
+      "citation": "Ferebee, R. C. Application of a computerized vibroacoustic data bank for random vibration criteria development. NASA-TP-1998, March 1982.",
+      "source_url": "https://ntrs.nasa.gov/citations/19820012364",
+      "availability": "public NTRS record and PDF download",
+      "domains": ["vibroacoustic databanks", "PSD", "one-third octave bands", "random vibration criteria"],
+      "notes": "Related historical NASA source behind NASA/TM-2009-215902."
+    },
+    {
+      "id": "REF-NASA-DBA-2017",
+      "title": "Damage Based Assessment overview presentation",
+      "kind": "presentation",
+      "status": "open_public",
+      "citation": "NASA. Damage Based Assessment overview presentation, NTRS record 20170010183.",
+      "source_url": "https://ntrs.nasa.gov/api/citations/20170010183/downloads/20170010183.pdf",
+      "availability": "public NTRS PDF",
+      "domains": ["damage based assessment", "fatigue damage spectrum", "random vibration test tailoring"],
+      "notes": "Useful NASA-facing overview that cites McNeill, ISO 18431-4, ASTM E1049, and Bendat/Piersol."
+    },
+    {
+      "id": "REF-JANG-2020-FDS-PSD-SYNTHESIS",
+      "title": "Simplified Vibration PSD Synthesis Method for MIL-STD-810",
+      "kind": "journal_article",
+      "status": "open_public",
+      "citation": "Jang, J. Simplified Vibration PSD Synthesis Method for MIL-STD-810. Applied Sciences 10(2), 458, 2020.",
+      "source_url": "https://www.mdpi.com/2076-3417/10/2/458",
+      "availability": "open access article",
+      "domains": ["FDS", "PSD synthesis", "MIL-STD-810", "damage potential"],
+      "notes": "Useful modern open-access implementation reference. It is not a governing standard."
+    },
+    {
+      "id": "REF-ACOUSTIC-TOOLBOX-IEC-61260-1",
+      "title": "Acoustic Toolbox IEC 61260-1:2014 implementation notes",
+      "kind": "implementation_reference",
+      "status": "open_public",
+      "citation": "Acoustic Toolbox documentation, IEC 61260-1:2014 standard functions.",
+      "source_url": "https://acoustic-toolbox.readthedocs.io/en/latest/standards/iec_61260_1_2014/",
+      "availability": "public software documentation",
+      "domains": ["octave bands", "fractional octave bands", "Python implementation"],
+      "notes": "Useful for implementing band-center calculations. Cite IEC 61260-1 for governing requirements."
+    }
+  ]
+}

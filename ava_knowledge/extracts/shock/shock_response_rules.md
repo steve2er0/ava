@@ -1,6 +1,9 @@
 # Shock Response Rules
 
-This starter extract captures rule-ready observations from common shock-analysis practice. It is intentionally uncited until actual source documents are ingested into `raw/` and traced through `processed/`.
+Status: draft_reference_pending
+Reference posture: Internal starter guidance only; do not cite as external authority until the placeholder reference is replaced with governing source records.
+
+This starter extract captures rule-ready observations from common shock-analysis practice. It uses a placeholder reference until actual source documents are ingested into `raw/` and traced through `processed/`.
 
 ## Scope
 
@@ -36,3 +39,7 @@ Peak absolute acceleration is not always the controlling quantity. Residual disp
 - Separate global adequacy checks from local-response adequacy checks.
 - Prefer convergence checks over simple mode-count rules.
 - Record the damping basis whenever it changes a decision.
+
+## References
+
+- `REF-AVA-STARTER-SHOCK-MODAL-001`: placeholder for starter shock and modal screening guidance. Replace before approving these extracts for external theory citation.

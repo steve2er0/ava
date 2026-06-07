@@ -17,3 +17,7 @@ This folder holds structured engineering statements distilled from processed sou
 ## How it fits into the AVA pipeline
 
 `extracts/` is the bridge between source text and formalized knowledge. It captures engineering meaning in a form that can be reviewed by humans and converted into concepts or executable rules.
+
+## Reference Requirement
+
+Every non-README extract that carries engineering theory, thresholds, limitations, or rule authoring cues must include a `## References` section with IDs from `../references/reference_index.json`. Draft extracts may use placeholder IDs only when the file is marked `draft_reference_pending`.

@@ -69,6 +69,9 @@ Produce a short engineering explanation that states:
 - The shock feature that controls the decision
 - Why low-order mass participation is or is not sufficient
 - What evidence is still required before closure
+- The rule IDs and reference IDs supporting any theory or threshold statement
+
+If a rule or concept only has placeholder references, describe it as internal starter guidance. Do not present placeholder-backed theory as external authority.
 
 ### 7. Add or update tests
 
@@ -79,5 +82,6 @@ If a rule changes, add at least one deterministic test case showing the triggeri
 - No unstated response metric
 - No unstated damping basis
 - No uncited threshold promoted as released knowledge
+- No theory citation without a reference ID from `../../references/reference_index.json`
 - At least one validating test for each new or changed decision branch
 - Output remains traceable to a source package or defined analysis case

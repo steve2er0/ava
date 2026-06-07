@@ -12,7 +12,8 @@ This map shows how the current starter knowledge set is organized and where cove
 6. `skills/` applies rules in versioned agent workflows.
 7. `tests/` validates rule and skill behavior.
 8. `../ava_core/validation/` gates approved engineering skills with golden cases, expected outputs, regression procedures, and approval records.
-9. `index/` provides navigation and coverage visibility.
+9. `references/` controls source IDs for theory, thresholds, and rule rationale.
+10. `index/` provides navigation and coverage visibility.
 
 ## Current Domain Coverage
 
@@ -31,10 +32,12 @@ This map shows how the current starter knowledge set is organized and where cove
 - `shock_delta_v1` is the first operational workflow that ties shock inputs to deterministic rule outcomes.
 - `case_001` is the baseline regression test for that workflow.
 - `compare_processed_psds` demonstrates the approval gate: approved engineering skills must have golden cases, expected outputs, regression procedures, and an approval record.
+- Theory-bearing outputs should cite source IDs from `references/reference_index.json`; placeholder references mark starter guidance that is not yet approved external theory.
 
 ## Immediate Next Steps
 
 - Add source-linked IDs once real documents are ingested into `raw/` and `processed/`.
+- Replace placeholder references with governing source records before approving shock or modal theory.
 - Expand `rules/modal/` with explicit effective-mass and residual-term logic.
 - Add damping rules that prevent non-conservative assumptions from closing a shock case.
 - Add acoustic concepts and workflows when that branch of the knowledge base is activated.
