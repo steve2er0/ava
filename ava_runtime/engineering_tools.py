@@ -107,7 +107,7 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
             "Use this for plain requests to view or visualize a model. "
             "Only load OP2 modes when an OP2/result path is explicitly supplied; "
             "otherwise let the user import modes from FEM Explorer. "
-            "Use viewer_backend='static' for the lightweight static HTML fallback."
+            "Do not build local viewer.html pages for ordinary visualization requests."
         ),
         risk_level="read_only",
         default_llm_exposure="summary_only",
@@ -122,8 +122,7 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
             "referenced OP2 mode shapes. "
             "Use this when a user asks to view/animate a mode, including requests "
             "like 'view the first mode'; "
-            "the OP2 path is optional when a matching .op2 file sits beside the BDF. "
-            "Use viewer_backend='static' for modal JSON exports."
+            "the OP2 path is optional when a matching .op2 file sits beside the BDF."
         ),
         risk_level="derived_data",
         default_llm_exposure="summary_only",
@@ -440,6 +439,20 @@ def _initial_mode_from_params(params: Mapping[str, Any]) -> str | int | None:
     return None
 
 
+def _mode_view_intent_requested(params: Mapping[str, Any]) -> bool:
+    if _mode_result_path_from_params(params) is not None:
+        return True
+    if _initial_mode_from_params(params) is not None:
+        return True
+    for key in ("view_mode", "mode_requested", "load_modes", "include_modes"):
+        if _optional_bool(params.get(key), default=False):
+            return True
+    return _optional_bool(params.get("animate"), default=False) or _optional_bool(
+        params.get("auto_animate"),
+        default=False,
+    )
+
+
 def _mode_result_path_from_params(params: Mapping[str, Any]) -> Path | None:
     for key in ("op2", "modes", "modes_path", "modal_result", "modal_result_path", "result"):
         value = params.get(key)
@@ -517,6 +530,13 @@ def _viewer_backend(params: Mapping[str, Any]) -> str:
     raise ValueError("viewer_backend must be 'fem_explorer' or 'static'")
 
 
+def _allow_static_viewer(params: Mapping[str, Any]) -> bool:
+    return _optional_bool(
+        params.get("allow_static_viewer") or params.get("allow_legacy_static_viewer"),
+        default=False,
+    )
+
+
 def _run_fem_explorer_viewer(
     params: Mapping[str, Any],
     tool: ApprovedTool,
@@ -550,7 +570,7 @@ def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> T
     out = _artifact_dir(params, tool.name)
     explicit_mode_result = _mode_result_path_from_params(params)
     mode_result = explicit_mode_result if explicit_mode_result is not None else None
-    if _viewer_backend(params) == "fem_explorer":
+    if _viewer_backend(params) == "fem_explorer" or not _allow_static_viewer(params):
         return _run_fem_explorer_viewer(
             params,
             tool,
@@ -586,8 +606,17 @@ def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> T
 
 def _run_op2_mode_shape_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
+    if not _mode_view_intent_requested(params):
+        return _run_fem_explorer_viewer(
+            params,
+            tool,
+            out,
+            mode_result=None,
+            required_mode=False,
+        )
+
     mode_result = _resolve_mode_result_for_viewer(params, required=True)
-    if _viewer_backend(params) == "fem_explorer":
+    if _viewer_backend(params) == "fem_explorer" or not _allow_static_viewer(params):
         return _run_fem_explorer_viewer(
             params,
             tool,

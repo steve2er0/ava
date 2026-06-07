@@ -7,6 +7,7 @@ import pytest
 from agent.llm_exposure import (
     APPROVED_PROTECTED_READ_FIELD,
     clear_protected_outputs,
+    protect_tool_result_for_model,
     register_protected_output,
 )
 from model_tools import handle_function_call
@@ -113,6 +114,48 @@ def test_minimal_exposure_keeps_clarify_answer_visible():
     assert len(messages) == 1
     assert "user approved option" in messages[0]["content"]
     assert "protected_output" not in messages[0]["content"]
+
+
+def test_minimal_exposure_keeps_engineering_viewer_summary_visible(tmp_path, monkeypatch):
+    clear_protected_outputs()
+    monkeypatch.setattr("tools.tool_result_storage.STORAGE_DIR", str(tmp_path))
+    result = json.dumps(
+        {
+            "tool": "bdf_3d_viewer_build",
+            "status": "ok",
+            "summary": {
+                "viewer_backend": "fem_explorer",
+                "window": "launched",
+                "launch_mode": "production",
+                "viewer_url": "http://127.0.0.1:62000",
+                "bdf_path": "/models/test.bdf",
+                "op2_path": None,
+                "auto_animate": False,
+            },
+            "artifacts": ["/models/viewer/fem_explorer_launch.json"],
+            "agent_guidance": "FEM Explorer has already been launched in a desktop window.",
+        }
+    )
+
+    envelope = json.loads(
+        protect_tool_result_for_model(
+            tool_name="engineering_tool_run",
+            result=result,
+            tool_call_id="call_engineering",
+        )
+    )
+
+    assert envelope["status"] == "protected_output"
+    assert envelope["content_returned"] is False
+    assert envelope["engineering_tool"] == "bdf_3d_viewer_build"
+    assert envelope["engineering_status"] == "ok"
+    assert envelope["engineering_summary"]["viewer_backend"] == "fem_explorer"
+    assert envelope["engineering_summary"]["window"] == "launched"
+    assert envelope["engineering_summary"]["viewer_url"] == "http://127.0.0.1:62000"
+    assert envelope["engineering_summary"]["bdf_path"] == "/models/test.bdf"
+    assert envelope["engineering_summary"]["op2_path"] is None
+    assert "already been launched" in envelope["engineering_agent_guidance"]
+    assert "summary" not in envelope
 
 
 def test_protected_output_read_requires_approval(tmp_path):

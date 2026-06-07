@@ -301,7 +301,50 @@ def _safe_tool_metadata(tool_name: str, result: Any) -> dict[str, Any]:
         for key in ("success", "bytes_written", "path"):
             if key in data and not isinstance(data.get(key), (dict, list)):
                 metadata[key] = data[key]
+    elif tool_name == "engineering_tool_run":
+        metadata.update(_safe_engineering_tool_metadata(data))
     return metadata
+
+
+def _safe_engineering_tool_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    for source_key, dest_key in (
+        ("tool", "engineering_tool"),
+        ("status", "engineering_status"),
+        ("llm_exposure", "engineering_llm_exposure"),
+    ):
+        value = data.get(source_key)
+        if _is_safe_metadata_scalar(value):
+            metadata[dest_key] = value
+
+    summary = data.get("summary")
+    if isinstance(summary, dict):
+        safe_summary = {
+            str(key): value
+            for key, value in summary.items()
+            if _is_safe_metadata_scalar(value)
+        }
+        if safe_summary:
+            metadata["engineering_summary"] = safe_summary
+
+    artifacts = data.get("artifacts")
+    if isinstance(artifacts, list):
+        safe_artifacts = [
+            item
+            for item in artifacts
+            if _is_safe_metadata_scalar(item)
+        ][:10]
+        if safe_artifacts:
+            metadata["engineering_artifacts"] = safe_artifacts
+
+    guidance = data.get("agent_guidance")
+    if isinstance(guidance, str) and guidance.strip():
+        metadata["engineering_agent_guidance"] = guidance.strip()[:1000]
+    return metadata
+
+
+def _is_safe_metadata_scalar(value: Any) -> bool:
+    return value is None or isinstance(value, (str, int, float, bool))
 
 
 def local_write_fallback(path: str, content: str) -> bool:
