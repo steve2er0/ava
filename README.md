@@ -43,14 +43,15 @@ ava doctor       # Diagnose setup issues
 
 ## AVA Engineering Tools
 
-This fork includes bundled AVA tools under `plugins/ava`:
+AVA exposes engineering work through the approved `engineering` toolset:
 
-- `ava_compute_modal_frf`
-- `ava_compute_srs`
-- `ava_summarize_bdf`
-- `ava_inspect_op2`
-- `ava_build_modal_deck`
-- `ava_run_shock_delta`
+- `engineering_tool_catalog`
+- `engineering_tool_run`
+
+The catalog includes controlled NASTRAN, modal, PSD, SRS, FDS, and HDF5 tools
+with risk level, default LLM exposure, summaries, and local artifact paths.
+Use `ava-tool catalog` from a development checkout to inspect the current
+approved list.
 
 The supporting Python packages are `ava_runtime` and `ava_knowledge`.
 

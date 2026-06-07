@@ -566,7 +566,7 @@ agent:
 #
 #   # Use presets (same as defaults):
 #   platform_toolsets:
-#     cli: [hermes-cli]
+#     cli: [hermes-cli, engineering]
 #     telegram: [hermes-telegram]
 #
 #   # Custom: give Telegram only web + terminal + file + planning:
@@ -582,7 +582,8 @@ agent:
 #     discord: [file, skills, todo]
 #
 # If not set, defaults are:
-#   cli:           hermes-cli            (secure local-first tools)
+#   cli:           hermes-cli + engineering
+#                  (secure local-first tools plus approved engineering tools)
 #   telegram:      hermes-telegram       (same secure local-first core)
 #   discord:       hermes-discord        (core + Discord helpers)
 #   whatsapp:      hermes-whatsapp       (same secure local-first core)
@@ -594,7 +595,7 @@ agent:
 #   google_chat:   hermes-google_chat    (same secure local-first core)
 #
 platform_toolsets:
-  cli: [hermes-cli]
+  cli: [hermes-cli, engineering]
   telegram: [hermes-telegram]
   discord: [hermes-discord]
   whatsapp: [hermes-whatsapp]

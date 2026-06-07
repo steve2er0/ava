@@ -71,36 +71,22 @@ HERMES_CADUCEUS = AVA_ASCII_ART
 
 
 # =========================================================================
-# Startup skill display
+# Startup engineering catalog display
 # =========================================================================
-
-_AVA_VIBROACOUSTIC_SKILLS: Dict[str, List[str]] = {
-    "modal": [
-        "modal_deck_builder",
-        "modal_frf",
-    ],
-    "nastran": [
-        "bdf_model_summary",
-        "op2_inspection",
-    ],
-    "shock": [
-        "shock_delta_v1",
-        "shock_response_spectrum",
-    ],
-}
 
 
 def get_available_skills() -> Dict[str, List[str]]:
-    """Return AVA-owned skills grouped for startup/status displays.
+    """Return approved engineering tools grouped for startup/status displays."""
 
-    AVA still has access to the underlying skill tooling, but the startup
-    banner should present the vibroacoustic workflows this fork owns instead
-    of advertising the bundled stock Hermes skill catalog.
-    """
-    return {
-        category: list(skill_names)
-        for category, skill_names in _AVA_VIBROACOUSTIC_SKILLS.items()
-    }
+    try:
+        from ava_runtime.engineering_tools import list_approved_tools
+    except Exception:
+        return {}
+
+    grouped: Dict[str, List[str]] = {}
+    for item in list_approved_tools():
+        grouped.setdefault(str(item["category"]), []).append(str(item["name"]))
+    return {category: sorted(names) for category, names in sorted(grouped.items())}
 
 
 # =========================================================================
@@ -637,27 +623,27 @@ def build_welcome_banner(console: "Console", model: str, cwd: str,
                 )
 
     right_lines.append("")
-    right_lines.append(f"[bold {accent}]AVA Skills[/]")
-    skills_by_category = get_available_skills()
-    total_skills = sum(len(s) for s in skills_by_category.values())
+    right_lines.append(f"[bold {accent}]Engineering Catalog[/]")
+    engineering_by_category = get_available_skills()
+    total_engineering_tools = sum(len(s) for s in engineering_by_category.values())
 
-    if skills_by_category:
-        for category in sorted(skills_by_category.keys()):
-            skill_names = sorted(skills_by_category[category])
-            if len(skill_names) > 8:
-                display_names = skill_names[:8]
-                skills_str = ", ".join(display_names) + f" +{len(skill_names) - 8} more"
+    if engineering_by_category:
+        for category in sorted(engineering_by_category.keys()):
+            tool_names = sorted(engineering_by_category[category])
+            if len(tool_names) > 8:
+                display_names = tool_names[:8]
+                tools_str = ", ".join(display_names) + f" +{len(tool_names) - 8} more"
             else:
-                skills_str = ", ".join(skill_names)
-            if len(skills_str) > 50:
-                skills_str = skills_str[:47] + "..."
-            right_lines.append(f"[dim {dim}]{category}:[/] [{text}]{skills_str}[/]")
+                tools_str = ", ".join(tool_names)
+            if len(tools_str) > 50:
+                tools_str = tools_str[:47] + "..."
+            right_lines.append(f"[dim {dim}]{category}:[/] [{text}]{tools_str}[/]")
     else:
-        right_lines.append(f"[dim {dim}]No skills installed[/]")
+        right_lines.append(f"[dim {dim}]No approved engineering tools loaded[/]")
 
     right_lines.append("")
     mcp_connected = sum(1 for s in mcp_status if s["connected"]) if mcp_status else 0
-    summary_parts = [f"{len(tools)} tools", f"{total_skills} skills"]
+    summary_parts = [f"{len(tools)} tools", f"{total_engineering_tools} engineering tools"]
     if mcp_connected:
         summary_parts.append(f"{mcp_connected} MCP servers")
     summary_parts.append("/help for commands")

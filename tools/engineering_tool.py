@@ -56,6 +56,7 @@ registry.register(
                         "nastran_geometry_summary",
                         "op2_modal_summary",
                         "modal_frf_compute",
+                        "sol103_deck_build",
                         "sol111_deck_build",
                         "nastran_run_job",
                         "nastran_f06_scan",

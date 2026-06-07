@@ -63,8 +63,8 @@ def test_build_welcome_banner_hides_unavailable_toolsets():
     assert "web_tools:" not in output
 
 
-def test_build_welcome_banner_shows_ava_skills_not_stock_skills():
-    """The startup banner should show AVA workflows instead of stock skill names."""
+def test_build_welcome_banner_shows_engineering_catalog_not_stock_skills():
+    """The startup banner should show the approved engineering catalog."""
     with (
         patch.object(banner, "get_update_result", return_value=None),
         patch.object(tools.mcp_tool, "get_mcp_status", return_value=[]),
@@ -76,15 +76,15 @@ def test_build_welcome_banner_shows_ava_skills_not_stock_skills():
             console=console,
             model="openai/codex",
             cwd="/tmp/project",
-            tools=[{"function": {"name": "ava_run_shock_delta"}}],
-            get_toolset_for_tool=lambda name: "ava",
+            tools=[{"function": {"name": "engineering_tool_catalog"}}],
+            get_toolset_for_tool=lambda name: "engineering",
         )
 
     output = console.export_text()
-    assert "AVA Skills" in output
-    assert "shock_delta_v1" in output
-    assert "shock_response_spectrum" in output
-    assert "modal_frf" in output
+    assert "Engineering Catalog" in output
+    assert "srs_compute" in output
+    assert "fds_compute" in output
+    assert "ava_run_shock_delta" not in output
     assert "github-auth" not in output
     assert "claude-code" not in output
     assert "codebase-inspection" not in output

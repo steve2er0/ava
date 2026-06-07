@@ -18,6 +18,7 @@ EXPECTED_TOOLS = {
     "nastran_geometry_summary",
     "op2_modal_summary",
     "modal_frf_compute",
+    "sol103_deck_build",
     "sol111_deck_build",
     "nastran_run_job",
     "nastran_f06_scan",
@@ -61,7 +62,7 @@ def test_catalog_contains_exact_build_plan_tools():
     names = {item["name"] for item in list_approved_tools()}
 
     assert names == EXPECTED_TOOLS
-    assert len(names) == 14
+    assert len(names) == 15
 
 
 def test_bdf_geometry_check_and_mass_tools(tmp_path):
@@ -126,7 +127,27 @@ def test_op2_modal_summary_and_modal_frf_tool(tmp_path):
     assert frf["summary"]["peak_magnitude"] > 0.0
 
 
-def test_sol111_runner_f06_and_pch_tools(tmp_path):
+def test_sol103_sol111_runner_f06_and_pch_tools(tmp_path):
+    sol103 = run_engineering_tool(
+        "sol103_deck_build",
+        {
+            "title": "Demo SOL103",
+            "spc_id": 1,
+            "method_id": 42,
+            "mode_count": 12,
+            "frequency_upper_hz": 500.0,
+            "bulk_data_lines": ["GRID,1,,0.,0.,0."],
+            "out": str(tmp_path / "modal_deck"),
+        },
+    )
+    sol103_path = Path(sol103["summary"]["deck_path"])
+    assert sol103["summary"]["solution"] == 103
+    assert sol103["llm_exposure"] == "no_ingest"
+    assert sol103_path.exists()
+    sol103_text = sol103_path.read_text(encoding="utf-8")
+    assert "SOL 103" in sol103_text
+    assert "EIGRL,42,,500.000,12" in sol103_text
+
     sol111 = run_engineering_tool(
         "sol111_deck_build",
         {

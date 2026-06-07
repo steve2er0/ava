@@ -165,8 +165,29 @@ def _load_mapping(path: str | Path) -> Mapping:
     else:
         loaded = json.loads(text)
     if not isinstance(loaded, Mapping):
-        raise ValueError("SOL111 config must be a mapping")
+        raise ValueError("Deck config must be a mapping")
     return loaded
+
+
+def sol103_request_from_mapping(config: Mapping) -> ModalDeckRequest:
+    """Build a SOL103 modal request from JSON/YAML-compatible config."""
+
+    return ModalDeckRequest(
+        title=str(config.get("title", "AVA SOL103 Modal Run")),
+        spc_id=int(config.get("spc_id", 1)),
+        method_id=int(config.get("method_id", 100)),
+        mode_count=int(config.get("mode_count", 50)),
+        frequency_upper_hz=float(config.get("frequency_upper_hz", 500.0)),
+        bulk_data_lines=tuple(str(line) for line in config.get("bulk_data_lines", ())),
+        case_control_overrides=tuple(str(line) for line in config.get("case_control_overrides", ())),
+    )
+
+
+def build_sol103_deck_from_config(config: Mapping | str | Path) -> str:
+    """Build a SOL103 deck from a mapping or a JSON/YAML config path."""
+
+    mapping = _load_mapping(config) if isinstance(config, (str, Path)) else config
+    return build_modal_deck(sol103_request_from_mapping(mapping))
 
 
 def sol111_request_from_mapping(config: Mapping) -> Sol111DeckRequest:

@@ -22,7 +22,7 @@ from ava_runtime.parsers.op2_parser import (
     summarize_op2_modal,
 )
 from ava_runtime.parsers.pch_parser import pch_summary_dict, parse_pch_records, summarize_pch
-from ava_runtime.solvers.deck_builder import build_sol111_deck_from_config, write_deck
+from ava_runtime.solvers.deck_builder import build_sol103_deck_from_config, build_sol111_deck_from_config, write_deck
 from ava_runtime.solvers.f06_scan import scan_f06
 from ava_runtime.solvers.nastran_runner import NastranRunRequest, NastranRunner
 
@@ -105,6 +105,15 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
         default_llm_exposure="summary_only",
         inputs=("modal_terms", "frequencies_hz"),
         outputs=("frf_summary.json", "frf.csv"),
+    ),
+    "sol103_deck_build": ApprovedTool(
+        name="sol103_deck_build",
+        category="nastran",
+        purpose="Generate a SOL103 modal deck from a typed config mapping or JSON/YAML config path.",
+        risk_level="file_generation",
+        default_llm_exposure="no_ingest",
+        inputs=("config",),
+        outputs=("run.dat", "sol103_build_summary.json"),
     ),
     "sol111_deck_build": ApprovedTool(
         name="sol111_deck_build",
@@ -421,6 +430,20 @@ def _run_modal_frf_compute(params: Mapping[str, Any], tool: ApprovedTool) -> Too
     return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, summary, tuple(str(path) for path in artifacts))
 
 
+def _run_sol103_deck_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
+    out = _artifact_dir(params, tool.name)
+    config = params.get("config") or params.get("config_path") or params
+    deck_text = build_sol103_deck_from_config(config)
+    deck_path = write_deck(out / str(params.get("deck_name", "run.dat")), deck_text)
+    summary = {
+        "deck_path": str(deck_path),
+        "line_count": len(deck_text.splitlines()),
+        "solution": 103,
+    }
+    summary_path = _write_json(out / "sol103_build_summary.json", summary)
+    return ToolRunResult(tool.name, "ok", tool.default_llm_exposure, summary, (str(deck_path), str(summary_path)))
+
+
 def _run_sol111_deck_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
     config = params.get("config") or params.get("config_path") or params
@@ -637,6 +660,7 @@ _RUNNERS: dict[str, Callable[[Mapping[str, Any], ApprovedTool], ToolRunResult]] 
     "nastran_geometry_summary": _run_nastran_geometry_summary,
     "op2_modal_summary": _run_op2_modal_summary,
     "modal_frf_compute": _run_modal_frf_compute,
+    "sol103_deck_build": _run_sol103_deck_build,
     "sol111_deck_build": _run_sol111_deck_build,
     "nastran_run_job": _run_nastran_run_job,
     "nastran_f06_scan": _run_nastran_f06_scan,
