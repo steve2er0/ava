@@ -13,8 +13,10 @@ def test_fem_explorer_launcher_writes_manifest_and_starts_electron(tmp_path, mon
     op2.write_bytes(b"op2")
     root = tmp_path / "fem-explorer"
     (root / "electron").mkdir(parents=True)
+    (root / "frontend" / "dist").mkdir(parents=True)
     (root / "package.json").write_text("{}", encoding="utf-8")
     (root / "electron" / "main.js").write_text("", encoding="utf-8")
+    (root / "frontend" / "dist" / "index.html").write_text("<html></html>", encoding="utf-8")
     captured = {}
 
     class FakeProcess:
@@ -49,8 +51,10 @@ def test_fem_explorer_launcher_writes_manifest_and_starts_electron(tmp_path, mon
     assert manifest["initial_mode"] == 1
     assert manifest["auto_animate"] is True
     assert result["summary"]["viewer_backend"] == "fem_explorer"
-    assert result["summary"]["frontend_url"] == "http://127.0.0.1:42002"
+    assert result["summary"]["launch_mode"] == "production"
+    assert result["summary"]["frontend_url"] == "http://127.0.0.1:42001"
     assert captured["command"][-1] == f"--launch-manifest={manifest_path}"
+    assert "--dev" not in captured["command"]
     assert captured["kwargs"]["cwd"] == str(root.resolve())
     assert captured["kwargs"]["env"]["FEM_EXPLORER_BACKEND_PORT"] == "42001"
     assert captured["kwargs"]["env"]["FEM_EXPLORER_FRONTEND_PORT"] == "42002"

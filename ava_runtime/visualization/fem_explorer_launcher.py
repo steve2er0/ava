@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import shutil
 import socket
 import subprocess
 import sys
@@ -68,7 +69,9 @@ def launch_fem_explorer_viewer(
         }
     )
 
-    command = _electron_command(manifest_path)
+    command, launch_mode = _electron_command(root, manifest_path)
+    backend_url = f"http://127.0.0.1:{backend_port}"
+    frontend_url = backend_url if launch_mode == "production" else f"http://127.0.0.1:{frontend_port}"
     with stdout_path.open("ab") as stdout, stderr_path.open("ab") as stderr:
         process = subprocess.Popen(
             command,
@@ -84,10 +87,11 @@ def launch_fem_explorer_viewer(
         "summary": {
             "viewer_backend": "fem_explorer",
             "window": "launched",
+            "launch_mode": launch_mode,
             "process_id": process.pid,
             "fem_explorer_root": str(root),
-            "frontend_url": f"http://127.0.0.1:{frontend_port}",
-            "backend_url": f"http://127.0.0.1:{backend_port}",
+            "frontend_url": frontend_url,
+            "backend_url": backend_url,
             "launch_manifest": str(manifest_path),
             "bdf_path": str(bdf_path),
             "op2_path": str(op2_path) if op2_path else None,
@@ -135,12 +139,21 @@ def _free_loopback_ports(count: int) -> tuple[int, ...]:
             sock.close()
 
 
-def _electron_command(manifest_path: Path) -> list[str]:
-    npm = "npm.cmd" if sys.platform.startswith("win") else "npm"
-    return [
-        npm,
-        "run",
-        "start:electron",
-        "--",
+def _electron_command(root: Path, manifest_path: Path) -> tuple[list[str], str]:
+    electron = _electron_executable(root)
+    command = [
+        electron,
+        ".",
         f"--launch-manifest={manifest_path}",
     ]
+    if (root / "frontend" / "dist" / "index.html").exists():
+        return command, "production"
+    return [command[0], command[1], "--dev", command[2]], "development"
+
+
+def _electron_executable(root: Path) -> str:
+    local_name = "electron.cmd" if sys.platform.startswith("win") else "electron"
+    local_bin = root / "node_modules" / ".bin" / local_name
+    if local_bin.exists():
+        return str(local_bin)
+    return shutil.which(local_name) or local_name

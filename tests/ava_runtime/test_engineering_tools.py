@@ -242,7 +242,7 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
     assert discovered_config["auto_animate"] is True
     assert Path(discovered_modal_export).exists()
 
-    bdf_modal = run_engineering_tool(
+    bdf_geometry_only = run_engineering_tool(
         "bdf_3d_viewer_build",
         {
             "bdf": str(bdf),
@@ -251,8 +251,10 @@ def test_bdf_and_op2_html_viewer_tools(tmp_path):
             "viewer_backend": "static",
         },
     )
-    assert bdf_modal["status"] == "ok"
-    assert bdf_modal["summary"]["mode_count"] == 2
+    assert bdf_geometry_only["status"] == "ok"
+    assert "mode_count" not in bdf_geometry_only["summary"]
+    bdf_geometry_config = json.loads(Path(bdf_geometry_only["summary"]["viewer_config"]).read_text(encoding="utf-8"))
+    assert bdf_geometry_config["modes_url"] is None
 
     mismatched_export = _write_mode_shape_export(tmp_path / "mismatched_modes.json", extra_node=True)
     mismatched = run_engineering_tool(
@@ -313,6 +315,87 @@ def test_op2_viewer_defaults_to_fem_explorer_launcher(tmp_path, monkeypatch):
     assert captured["op2"] == op2
     assert captured["initial_mode"] == 1
     assert captured["auto_animate"] is True
+
+
+def test_mode_result_discovery_is_case_insensitive_for_modal_fem_example(tmp_path, monkeypatch):
+    import ava_runtime.engineering_tools as engineering_tools
+
+    bdf = _write_demo_bdf(tmp_path / "modalFEM_SIunits_011317.bdf")
+    op2 = tmp_path / "modalfem_siunits_011317-001.op2"
+    op2.write_bytes(b"op2")
+    captured = {}
+
+    def fake_launch_fem_explorer_viewer(bdf_arg, output_dir, **kwargs):
+        captured["bdf"] = bdf_arg
+        captured["output_dir"] = output_dir
+        captured.update(kwargs)
+        manifest = Path(output_dir) / "fem_explorer_launch.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text("{}", encoding="utf-8")
+        return {
+            "summary": {
+                "viewer_backend": "fem_explorer",
+                "frontend_url": "http://127.0.0.1:5173",
+                "launch_manifest": str(manifest),
+            },
+            "artifacts": (str(manifest),),
+        }
+
+    monkeypatch.setattr(engineering_tools, "launch_fem_explorer_viewer", fake_launch_fem_explorer_viewer)
+
+    result = run_engineering_tool(
+        "op2_mode_shape_viewer_build",
+        {
+            "bdf": str(bdf),
+            "out": str(tmp_path / "fem_explorer"),
+            "first_mode": True,
+        },
+    )
+
+    assert result["status"] == "ok"
+    assert captured["op2"] == op2
+    assert captured["initial_mode"] == 1
+    assert captured["auto_animate"] is True
+
+
+def test_plain_bdf_visualization_does_not_auto_load_discovered_op2(tmp_path, monkeypatch):
+    import ava_runtime.engineering_tools as engineering_tools
+
+    bdf = _write_demo_bdf(tmp_path / "modalFEM_SIunits_011317.bdf")
+    (tmp_path / "modalfem_siunits_011317-001.op2").write_bytes(b"op2")
+    captured = {}
+
+    def fake_launch_fem_explorer_viewer(bdf_arg, output_dir, **kwargs):
+        captured["bdf"] = bdf_arg
+        captured["output_dir"] = output_dir
+        captured.update(kwargs)
+        manifest = Path(output_dir) / "fem_explorer_launch.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text("{}", encoding="utf-8")
+        return {
+            "summary": {
+                "viewer_backend": "fem_explorer",
+                "frontend_url": "http://127.0.0.1:5173",
+                "launch_manifest": str(manifest),
+            },
+            "artifacts": (str(manifest),),
+        }
+
+    monkeypatch.setattr(engineering_tools, "launch_fem_explorer_viewer", fake_launch_fem_explorer_viewer)
+
+    result = run_engineering_tool(
+        "bdf_3d_viewer_build",
+        {
+            "bdf": str(bdf),
+            "out": str(tmp_path / "fem_explorer"),
+        },
+    )
+
+    assert result["status"] == "ok"
+    assert captured["bdf"] == str(bdf)
+    assert captured["op2"] is None
+    assert captured["initial_mode"] is None
+    assert captured["auto_animate"] is False
 
 
 def test_fem_viewer_tools_fail_for_missing_inputs(tmp_path):

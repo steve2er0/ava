@@ -104,8 +104,9 @@ APPROVED_TOOLS: dict[str, ApprovedTool] = {
         category="visualization",
         purpose=(
             "Open FEM Explorer in a new local desktop window for BDF geometry. "
-            "If a modal OP2/JSON result is supplied or can be discovered beside the BDF, "
-            "the viewer loads mode shapes with animation and GIF export controls. "
+            "Use this for plain requests to view or visualize a model. "
+            "Only load OP2 modes when an OP2/result path is explicitly supplied; "
+            "otherwise let the user import modes from FEM Explorer. "
             "Use viewer_backend='static' for the lightweight static HTML fallback."
         ),
         risk_level="read_only",
@@ -439,26 +440,6 @@ def _initial_mode_from_params(params: Mapping[str, Any]) -> str | int | None:
     return None
 
 
-def _mode_requested(params: Mapping[str, Any]) -> bool:
-    has_mode_selector = any(
-        key in params
-        for key in (
-            "initial_mode",
-            "initial_mode_id",
-            "mode_id",
-            "mode_number",
-            "mode",
-            "mode_index",
-            "first_mode",
-        )
-    )
-    return (
-        has_mode_selector
-        or _optional_bool(params.get("animate"), default=False)
-        or _optional_bool(params.get("auto_animate"), default=False)
-    )
-
-
 def _mode_result_path_from_params(params: Mapping[str, Any]) -> Path | None:
     for key in ("op2", "modes", "modes_path", "modal_result", "modal_result_path", "result"):
         value = params.get(key)
@@ -471,6 +452,9 @@ def _discover_mode_result_for_bdf(bdf: str | Path) -> Path | None:
     bdf_path = Path(str(bdf)).expanduser()
     parent = bdf_path.parent
     stem = bdf_path.stem
+    if not parent.exists():
+        return None
+
     exact_candidates = [
         parent / f"{stem}.op2",
         parent / f"{stem}.OP2",
@@ -484,12 +468,25 @@ def _discover_mode_result_for_bdf(bdf: str | Path) -> Path | None:
         if candidate.exists():
             return candidate
 
+    stem_lower = stem.lower()
+    exact_names = {candidate.name.lower() for candidate in exact_candidates}
+    files = [candidate for candidate in parent.iterdir() if candidate.is_file()]
+    for candidate in files:
+        if candidate.name.lower() in exact_names:
+            return candidate
+
     matches = sorted(
         [
             candidate
-            for pattern in (f"{stem}*.op2", f"{stem}*.OP2", f"{stem}*mode*.json", f"{stem}*modal*.json")
-            for candidate in parent.glob(pattern)
-            if candidate.is_file()
+            for candidate in files
+            if candidate.name.lower().startswith(stem_lower)
+            and (
+                candidate.suffix.lower() == ".op2"
+                or (
+                    candidate.suffix.lower() == ".json"
+                    and ("mode" in candidate.name.lower() or "modal" in candidate.name.lower())
+                )
+            )
         ],
         key=lambda path: (path.suffix.lower() != ".op2", path.name.lower()),
     )
@@ -551,11 +548,8 @@ def _run_fem_explorer_viewer(
 
 def _run_bdf_3d_viewer_build(params: Mapping[str, Any], tool: ApprovedTool) -> ToolRunResult:
     out = _artifact_dir(params, tool.name)
-    mode_result = (
-        _resolve_mode_result_for_viewer(params, required=False)
-        if _mode_requested(params) or _mode_result_path_from_params(params)
-        else None
-    )
+    explicit_mode_result = _mode_result_path_from_params(params)
+    mode_result = explicit_mode_result if explicit_mode_result is not None else None
     if _viewer_backend(params) == "fem_explorer":
         return _run_fem_explorer_viewer(
             params,
