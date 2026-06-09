@@ -95,13 +95,20 @@ def test_configurable_toolsets_include_fem_explorer():
     assert any(ts_key == "fem_explorer" for ts_key, _, _ in CONFIGURABLE_TOOLSETS)
 
 
-def test_default_cli_config_enables_fem_explorer():
+def test_configurable_toolsets_include_spectral_edge():
+    assert any(ts_key == "spectral_edge" for ts_key, _, _ in CONFIGURABLE_TOOLSETS)
+
+
+def test_default_cli_config_enables_engineering_visualization_tools():
     from hermes_cli.config import DEFAULT_CONFIG
 
     enabled = _get_platform_tools(DEFAULT_CONFIG, "cli", include_default_mcp_servers=False)
 
     assert "engineering" in enabled
     assert "fem_explorer" in enabled
+    assert "spectral_edge" in enabled
+    assert DEFAULT_CONFIG["spectral_edge"]["root"] == "/Users/stephenwells/Documents/DevOps/spectral-edge"
+    assert "/Users/stephenwells/Documents/DevOps/spectral-edge/data" in DEFAULT_CONFIG["spectral_edge"]["data_roots"]
 
 
 def test_get_platform_tools_active_context_engine_is_enabled_for_explicit_config():

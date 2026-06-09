@@ -747,9 +747,13 @@ DEFAULT_CONFIG = {
     "providers": {},
     "fallback_providers": [],
     "credential_pool_strategies": {},
-    "toolsets": ["hermes-cli", "engineering", "fem_explorer"],
+    "toolsets": ["hermes-cli", "engineering", "fem_explorer", "spectral_edge"],
     "platform_toolsets": {
-        "cli": ["hermes-cli", "engineering", "fem_explorer"],
+        "cli": ["hermes-cli", "engineering", "fem_explorer", "spectral_edge"],
+    },
+    "spectral_edge": {
+        "root": "/Users/stephenwells/Documents/DevOps/spectral-edge",
+        "data_roots": ["/Users/stephenwells/Documents/DevOps/spectral-edge/data"],
     },
     "agent": {
         "max_turns": 90,

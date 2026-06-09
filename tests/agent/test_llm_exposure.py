@@ -200,6 +200,46 @@ def test_minimal_exposure_keeps_fem_explorer_summary_visible(tmp_path, monkeypat
     assert "summary" not in envelope
 
 
+def test_minimal_exposure_keeps_spectral_edge_summary_visible(tmp_path, monkeypatch):
+    clear_protected_outputs()
+    monkeypatch.setattr("tools.tool_result_storage.STORAGE_DIR", str(tmp_path))
+    result = json.dumps(
+        {
+            "tool": "spectral_edge_open_spectrogram",
+            "status": "ok",
+            "summary": {
+                "viewer_backend": "spectral_edge",
+                "window": "launched",
+                "file_path": "/data/AR02.h5",
+                "flight_key": "AR02",
+                "channel_key": "Accel_X",
+                "manifest_path": "/data/_ava_spectral_edge/AR02_spectrogram/spectral_edge_launch.json",
+            },
+            "artifacts": ["/data/_ava_spectral_edge/AR02_spectrogram/spectral_edge_launch.json"],
+            "agent_guidance": "SpectralEdge has already been launched in a desktop window.",
+        }
+    )
+
+    envelope = json.loads(
+        protect_tool_result_for_model(
+            tool_name="spectral_edge_open_spectrogram",
+            result=result,
+            tool_call_id="call_spectral_edge",
+        )
+    )
+
+    assert envelope["status"] == "protected_output"
+    assert envelope["content_returned"] is False
+    assert envelope["spectral_edge_tool"] == "spectral_edge_open_spectrogram"
+    assert envelope["spectral_edge_status"] == "ok"
+    assert envelope["spectral_edge_summary"]["viewer_backend"] == "spectral_edge"
+    assert envelope["spectral_edge_summary"]["window"] == "launched"
+    assert envelope["spectral_edge_summary"]["file_path"] == "/data/AR02.h5"
+    assert envelope["spectral_edge_summary"]["channel_key"] == "Accel_X"
+    assert "already been launched" in envelope["spectral_edge_agent_guidance"]
+    assert "summary" not in envelope
+
+
 def test_protected_output_read_requires_approval(tmp_path):
     clear_protected_outputs()
     protected = tmp_path / "protected.txt"

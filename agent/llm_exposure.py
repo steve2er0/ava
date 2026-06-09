@@ -305,6 +305,8 @@ def _safe_tool_metadata(tool_name: str, result: Any) -> dict[str, Any]:
         metadata.update(_safe_structured_tool_metadata(data, "engineering"))
     elif tool_name == "fem_explorer_open":
         metadata.update(_safe_structured_tool_metadata(data, "fem_explorer"))
+    elif tool_name.startswith("spectral_edge_"):
+        metadata.update(_safe_structured_tool_metadata(data, "spectral_edge"))
     return metadata
 
 

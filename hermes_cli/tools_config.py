@@ -75,6 +75,7 @@ CONFIGURABLE_TOOLSETS = [
     ("clarify",         "❓ Clarifying Questions",      "clarify"),
     ("engineering",     "🛠️  Engineering Tools",        "approved NASTRAN, PSD, SRS, FDS, and HDF5 tools"),
     ("fem_explorer",    "🧭 FEM Explorer",              "desktop BDF geometry and OP2 mode visualization"),
+    ("spectral_edge",   "📈 SpectralEdge",              "flight data discovery, channel selection, spectrogram viewer"),
     ("delegation",      "👥 Task Delegation",           "delegate_task"),
     ("cronjob",         "⏰ Cron Jobs",                 "create/list/update/pause/resume/run, with optional attached skills"),
     ("messaging",       "📨 Cross-Platform Messaging",  "send_message"),

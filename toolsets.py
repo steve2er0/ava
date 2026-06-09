@@ -220,6 +220,12 @@ TOOLSETS = {
         "tools": ["fem_explorer_open"],
         "includes": []
     },
+
+    "spectral_edge": {
+        "description": "SpectralEdge desktop signal visualization: find flight data, select channels, and open spectrogram viewers",
+        "tools": ["spectral_edge_find_data", "spectral_edge_list_channels", "spectral_edge_open_spectrogram"],
+        "includes": []
+    },
     
     "delegation": {
         "description": "Spawn subagents with isolated context for complex subtasks",
